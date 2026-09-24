@@ -121,6 +121,8 @@ object LanServer {
 
     fun stop() {
         running = false
+        _running.value = false
+        _port.value = 0
         try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
         acceptJob?.cancel()

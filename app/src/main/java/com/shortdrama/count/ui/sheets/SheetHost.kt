@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,30 +32,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shortdrama.count.model.ActiveSheet
+import com.shortdrama.count.model.ShareItem
 import com.shortdrama.count.ui.theme.AppColorsHolder
+import com.shortdrama.count.ui.theme.Palette
 import com.shortdrama.count.util.AppConstants
 import com.shortdrama.count.util.Haptics
 import com.shortdrama.count.util.ImageShare
+import com.shortdrama.count.util.ShareCode
 import com.shortdrama.count.service.ExportImageService
 import com.shortdrama.count.viewmodel.AppViewModel
 import com.shortdrama.count.viewmodel.ToastStyle
 
-/**
- * 自绘底部弹窗。
- * 作为 Scaffold 内容区内的 Overlay，天然被底栏约束，不会再溢出到系统导航栏之外。
- */
 @Composable
 fun BoxScope.SheetHost(vm: AppViewModel) {
     val sheet by vm.activeSheet.collectAsState()
     val visible = sheet != null
 
-    // 记录最后一次非空 sheet，保证退场动画期间内容仍在
     var renderSheet by remember { mutableStateOf<ActiveSheet?>(null) }
     LaunchedEffect(sheet) { if (sheet != null) renderSheet = sheet }
 
     val current = renderSheet ?: return
 
-    // 遮罩
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(),
@@ -71,7 +70,6 @@ fun BoxScope.SheetHost(vm: AppViewModel) {
         )
     }
 
-    // 弹窗主体（底部对齐，受内容区高度约束）
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically(initialOffsetY = { it }),
@@ -85,7 +83,6 @@ fun BoxScope.SheetHost(vm: AppViewModel) {
             tonalElevation = 8.dp,
         ) {
             Column(Modifier.fillMaxWidth()) {
-                // 顶部拖拽条
                 Box(
                     Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
                     contentAlignment = Alignment.Center,
@@ -112,58 +109,221 @@ fun BoxScope.SheetHost(vm: AppViewModel) {
     }
 }
 
-/** 内容底部留白（内容区已被底栏约束，这里只需呼吸空间） */
 fun Modifier.sheetContentPadding(): Modifier = this.padding(bottom = 20.dp)
 
 @Composable
 private fun ImportSheet(vm: AppViewModel) {
     val c = AppColorsHolder
+    val clipboard = LocalClipboardManager.current
     var text by remember { mutableStateOf("") }
     val pending by vm.pendingImportText.collectAsState()
-    var dedup by remember { mutableStateOf(true) }
     LaunchedEffect(pending) { if (pending != null) text = pending!! }
-    val date = vm.currentDateString
+
+    var previewItems by remember { mutableStateOf<List<ShareItem>?>(null) }
+    var badLines by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    val items = previewItems
+    if (items != null) {
+        ImportPreview(
+            vm = vm,
+            initialItems = items,
+            bad = badLines,
+            onBack = { previewItems = null },
+            onDone = { vm.setActiveSheet(null) },
+        )
+        return
+    }
 
     Column(
-        Modifier.fillMaxSize()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .sheetContentPadding()
-            .padding(horizontal = 20.dp),
+        Modifier.fillMaxSize().imePadding().sheetContentPadding().padding(horizontal = 20.dp),
     ) {
         Text("导入数据", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("粘贴内容", color = c.textSub, fontSize = 13.sp)
+            Spacer(Modifier.weight(1f))
+            if (text.isNotEmpty()) {
+                TextButton(onClick = { text = ""; Haptics.tap() }) {
+                    Text("清空", color = Palette.red, fontSize = 13.sp)
+                }
+            }
+            TextButton(onClick = {
+                val clip = clipboard.getText()?.text ?: ""
+                if (clip.isEmpty()) {
+                    vm.showToast("剪贴板为空", ToastStyle.ERROR)
+                } else {
+                    text = if (text.isEmpty()) clip else text + "\n" + clip
+                    Haptics.tap()
+                }
+            }) {
+                Icon(Icons.Filled.ContentPaste, null, tint = Palette.blue, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("粘贴", color = Palette.blue, fontSize = 13.sp)
+            }
+        }
         Spacer(Modifier.height(4.dp))
-        Text("支持明文、CHEN 分享码、DCT1 密文", color = c.textSub, fontSize = 12.sp)
-        Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = text, onValueChange = { text = it },
-            label = { Text("粘贴导入内容") },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+            placeholder = { Text("【剧名】易:2 | 懂:3  /  DCT1密文 / CHEN分享码", fontSize = 12.sp) },
+            modifier = Modifier.fillMaxWidth().weight(1f),
         )
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = dedup, onCheckedChange = { dedup = it })
-            Text("去重（跳过已存在剧名）", color = c.textSub, fontSize = 13.sp)
-        }
+        Spacer(Modifier.height(10.dp))
+        Text("支持：【剧名】易:2 | 懂:3、【剧名】、DCT1 密文、CHEN 分享码",
+            color = c.textSub, fontSize = 11.sp)
         Spacer(Modifier.height(12.dp))
         Button(
             onClick = {
-                if (text.isBlank()) { vm.showToast("请输入内容", ToastStyle.ERROR); return@Button }
                 val trimmed = text.trim()
-                val result = if (trimmed.startsWith(AppConstants.sharePrefix) || trimmed.startsWith(AppConstants.encPrefix))
-                    vm.importShareCode(trimmed, date, dedup)
-                else {
-                    val (items, _) = vm.parseImportText(trimmed)
-                    if (items.isEmpty()) null else vm.importItems(date, items, dedup)
-                }
-                if (result == null) { vm.showToast("解析失败或格式错误", ToastStyle.ERROR); Haptics.warning() }
-                else {
-                    vm.showToast("✅ 导入 " + result.first + " 条，跳过 " + result.second + " 条", ToastStyle.SUCCESS)
-                    vm.consumePendingImport(); vm.setActiveSheet(null); Haptics.success()
+                if (trimmed.isEmpty()) return@Button
+                val result = parseInput(vm, trimmed)
+                if (result == null) {
+                    vm.showToast("解析失败或格式错误", ToastStyle.ERROR); Haptics.warning()
+                } else if (result.first.isEmpty()) {
+                    var msg = "未识别到有效数据"
+                    if (result.second.isNotEmpty()) {
+                        msg = msg + "\n" + result.second.take(3).joinToString("\n") { it.trim().take(30) }
+                    }
+                    vm.showToast(msg, ToastStyle.ERROR); Haptics.warning()
+                } else {
+                    previewItems = result.first
+                    badLines = result.second
+                    Haptics.success()
                 }
             },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-        ) { Text("导入到 " + date) }
+            enabled = text.trim().isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+        ) {
+            Text("解析", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+private fun parseInput(vm: AppViewModel, raw: String): Pair<List<ShareItem>, List<String>>? {
+    return try {
+        if (raw.startsWith(AppConstants.sharePrefix)) {
+            val unpacked = ShareCode.unpack(ShareCode.decrypt(raw))
+            val order = unpacked.first
+            val groups = unpacked.second
+            val items = order.mapNotNull { pair ->
+                val title = pair.first
+                val fast = pair.second
+                val pl = groups[title + "|" + fast] ?: emptyMap()
+                if (pl.isEmpty()) null else ShareItem(title, fast, pl.toMutableMap())
+            }
+            items to emptyList()
+        } else {
+            var body = raw
+            if (raw.startsWith(AppConstants.encPrefix)) {
+                body = ShareCode.decryptDCT1(raw)
+            }
+            vm.parseImportText(body)
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+@Composable
+private fun ImportPreview(
+    vm: AppViewModel,
+    initialItems: List<ShareItem>,
+    bad: List<String>,
+    onBack: () -> Unit,
+    onDone: () -> Unit,
+) {
+    val c = AppColorsHolder
+    val date = vm.currentDateString
+    var editable by remember { mutableStateOf(initialItems) }
+    var dedup by remember { mutableStateOf(true) }
+
+    var totalAds = 0
+    for (it in editable) totalAds += it.platforms.values.sum()
+
+    Column(
+        Modifier.fillMaxSize().sheetContentPadding().padding(horizontal = 20.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("确认导入", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onBack) { Text("返回编辑") }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("目标日期：" + date + "  ·  共 " + editable.size + " 部 · " + totalAds + " 条",
+            color = c.textSub, fontSize = 12.sp)
+        Spacer(Modifier.height(10.dp))
+
+        if (editable.isEmpty()) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text("已清空所有待导入项", color = c.textSub, fontSize = 13.sp)
+            }
+        } else {
+            LazyColumn(
+                Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(editable, key = { it.title + "|" + it.isFast }) { item ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(c.card).padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(item.title, color = c.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                if (item.isFast) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("极速", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Palette.blue)
+                                            .padding(horizontal = 6.dp, vertical = 1.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                if (item.platforms.isEmpty()) "（无平台数据）"
+                                else item.platforms.entries.sortedByDescending { it.value }
+                                    .joinToString("  ") { it.key.take(1) + ":" + it.value },
+                                color = c.textSub, fontSize = 12.sp,
+                            )
+                        }
+                        IconButton(onClick = {
+                            editable = editable.filterNot { it.title == item.title && it.isFast == item.isFast }
+                            Haptics.tap()
+                        }) {
+                            Icon(Icons.Filled.Delete, null, tint = Palette.red, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+                if (bad.isNotEmpty()) {
+                    item {
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(c.card).padding(12.dp)) {
+                            Text("已忽略 " + bad.size + " 行", color = c.textSub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            bad.take(5).forEach { line ->
+                                Text(line.trim().take(40), color = c.textSub, fontSize = 11.sp)
+                            }
+                            if (bad.size > 5) Text("... 还有 " + (bad.size - 5) + " 行", color = c.textSub, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("按剧名去重", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Switch(checked = dedup, onCheckedChange = { dedup = it; Haptics.tap() })
+        }
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val result = vm.importItems(date, editable, dedup)
+                vm.showToast("导入 " + result.first + " 部 · 跳过 " + result.second + " 部", ToastStyle.SUCCESS)
+                Haptics.success()
+                onDone()
+            },
+            enabled = editable.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+        ) { Text("确认导入", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
     }
 }
 
@@ -263,11 +423,7 @@ private fun ExportImageSheet(vm: AppViewModel) {
                         vm.showToast("保存失败，请检查存储权限", ToastStyle.ERROR); return@Button
                     }
                     val shared = ImageShare.shareUri(context, uri)
-                    if (shared) {
-                        vm.showToast("✅ 已保存到相册并分享", ToastStyle.SUCCESS)
-                    } else {
-                        vm.showToast("✅ 已保存到相册", ToastStyle.SUCCESS)
-                    }
+                    vm.showToast(if (shared) "✅ 已保存到相册并分享" else "✅ 已保存到相册", ToastStyle.SUCCESS)
                     Haptics.success()
                     vm.setActiveSheet(null)
                 } catch (e: Exception) {

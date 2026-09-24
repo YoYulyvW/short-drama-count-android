@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shortdrama.count.model.ActiveSheet
 import com.shortdrama.count.model.Drama
-import com.shortdrama.count.ui.components.AnimatedNumber
+import com.shortdrama.count.ui.components.BounceNumber
 import com.shortdrama.count.ui.components.PressableCard
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
@@ -52,21 +52,22 @@ private fun TopInfoBar(vm: AppViewModel, dateStr: String) {
     val summary = vm.summary(dateStr)
     val date by vm.currentDate.collectAsState()
     val c = AppColorsHolder
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(Modifier.padding(horizontal = 18.dp).padding(top = 12.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("开饭了", color = c.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("开饭了", color = c.text, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
             DateSelector(vm, date)
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.DateRange, null, tint = c.textSub, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(5.dp))
             Text(dateLabel(date), color = c.textSub, fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
-            AnimatedNumber(summary.dramaCount, Palette.indigo, 12)
+            Text("共 ", color = c.textSub, fontSize = 12.sp)
+            BounceNumber(summary.dramaCount, Palette.indigo, 13, FontWeight.Bold)
             Text(" 部 · ", color = c.textSub, fontSize = 12.sp)
-            AnimatedNumber(summary.total, Palette.orange, 12)
+            BounceNumber(summary.total, Palette.orange, 13, FontWeight.Bold)
             Text(" 条广告", color = c.textSub, fontSize = 12.sp)
         }
     }
@@ -133,8 +134,8 @@ private fun ToolBar(vm: AppViewModel) {
     val scanning by vm.scanningDevices.collectAsState()
     val size: Dp = settings.toolButtonSize.dp
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ToolButton(Icons.Filled.Download, "导入", Palette.green, size) {
@@ -164,11 +165,12 @@ private fun ToolButton(icon: ImageVector, title: String, color: Color, size: Dp,
     PressableCard(onClick = action) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(size)) {
             Box(
-                Modifier.size(size * 0.615f).clip(RoundedCornerShape(size * 0.17f)).background(color),
+                Modifier.size(size * 0.62f).clip(RoundedCornerShape(size * 0.2f)).background(color),
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(size * 0.33f)) }
-            Spacer(Modifier.height(5.dp))
-            Text(title, color = AppColorsHolder.text, fontSize = 10.sp, maxLines = 1)
+            ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(size * 0.34f)) }
+            Spacer(Modifier.height(6.dp))
+            Text(title, color = AppColorsHolder.text, fontSize = 10.sp,
+                fontWeight = FontWeight.Medium, maxLines = 1)
         }
     }
 }
@@ -180,13 +182,13 @@ private fun TitleInputBar(vm: AppViewModel, dateStr: String) {
     var showOcr by remember { mutableStateOf(false) }
     val c = AppColorsHolder
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(12.dp)).background(c.card)
-                .padding(horizontal = 12.dp),
+            Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(13.dp)).background(c.card)
+                .padding(start = 14.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             androidx.compose.foundation.text.BasicTextField(
@@ -209,10 +211,10 @@ private fun TitleInputBar(vm: AppViewModel, dateStr: String) {
         }
         PressableCard(onClick = { fastInput = !fastInput; Haptics.tap() }) {
             Box(
-                Modifier.size(52.dp, 44.dp).clip(RoundedCornerShape(12.dp))
+                Modifier.size(54.dp, 46.dp).clip(RoundedCornerShape(13.dp))
                     .background(if (fastInput) Palette.blue else c.cardElev),
                 contentAlignment = Alignment.Center,
-            ) { Text("极速", color = if (fastInput) Color.White else c.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text("极速", color = if (fastInput) Color.White else c.textSub, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
         }
         PressableCard(onClick = {
             val raw = title.trim()
@@ -225,9 +227,9 @@ private fun TitleInputBar(vm: AppViewModel, dateStr: String) {
             }
         }) {
             Box(
-                Modifier.size(60.dp, 44.dp).clip(RoundedCornerShape(12.dp)).background(Palette.green),
+                Modifier.size(64.dp, 46.dp).clip(RoundedCornerShape(13.dp)).background(Palette.green),
                 contentAlignment = Alignment.Center,
-            ) { Text("新增", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+            ) { Text("新增", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
         }
     }
     if (showOcr) {

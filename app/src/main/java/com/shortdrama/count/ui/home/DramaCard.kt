@@ -1,6 +1,15 @@
 package com.shortdrama.count.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,11 +24,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shortdrama.count.model.Drama
+import com.shortdrama.count.ui.components.BounceNumber
 import com.shortdrama.count.ui.components.PressableCard
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
@@ -43,11 +55,26 @@ fun DramaCard(vm: AppViewModel, date: String, drama: Drama, isLatest: Boolean) {
     var showAddPlatform by remember { mutableStateOf(false) }
     val expanded = userExpanded ?: if (settings.autoCollapse) isLatest else true
 
+    val arrowRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium),
+        label = "arrow",
+    )
+
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card)
-            .padding(14.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // 整行点击展开/收起
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { userExpanded = !expanded; Haptics.tap() }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(drama.title, color = c.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -60,43 +87,58 @@ fun DramaCard(vm: AppViewModel, date: String, drama: Drama, isLatest: Boolean) {
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    if (records.isEmpty()) "暂无计数 · 点开添加" else records.joinToString("  ") { it.platform.take(1) + ":" + it.count },
+                    if (records.isEmpty()) "暂无计数 · 点开添加"
+                    else records.joinToString("  ") { it.platform.take(1) + ":" + it.count },
                     color = c.textSub, fontSize = 12.sp
                 )
             }
-            Text(total.toString(), color = Palette.indigo, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(6.dp))
-            PressableCard(onClick = { userExpanded = !expanded }) {
-                Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null,
-                    tint = c.textSub, modifier = Modifier.size(22.dp))
-            }
+            BounceNumber(total, Palette.indigo, 20, FontWeight.Bold)
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Filled.ExpandMore, null,
+                tint = c.textSub,
+                modifier = Modifier.size(22.dp).rotate(arrowRotation),
+            )
         }
 
-        if (expanded) {
-            Spacer(Modifier.height(10.dp))
-            Divider(color = c.divider)
-            Spacer(Modifier.height(8.dp))
-            records.forEach { rec ->
-                val cfg = vm.platformConfig(rec.platform)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(parseHex(cfg.colorHex)))
-                    Spacer(Modifier.width(8.dp))
-                    Text(rec.platform, color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                    StepButton(Icons.Filled.Remove, Palette.grayBtn) {
-                        vm.incrementPlatform(date, drama.title, rec.platform, drama.isFast, -1); Haptics.tap()
-                    }
-                    Text(rec.count.toString(), color = c.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.width(40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    StepButton(Icons.Filled.Add, Palette.blue) {
-                        vm.incrementPlatform(date, drama.title, rec.platform, drama.isFast, 1); Haptics.tap()
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(
+                animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)
+            ) + fadeIn(),
+            exit = shrinkVertically(
+                animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)
+            ) + fadeOut(),
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp).padding(bottom = 14.dp)) {
+                Divider(color = c.divider)
+                Spacer(Modifier.height(8.dp))
+                records.forEach { rec ->
+                    val cfg = vm.platformConfig(rec.platform)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    ) {
+                        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(parseHex(cfg.colorHex)))
+                        Spacer(Modifier.width(10.dp))
+                        Text(rec.platform, color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        StepButton(Icons.Filled.Remove, c.cardElev, c.textSub) {
+                            vm.incrementPlatform(date, drama.title, rec.platform, drama.isFast, -1); Haptics.tap()
+                        }
+                        Box(Modifier.width(46.dp), contentAlignment = Alignment.Center) {
+                            BounceNumber(rec.count, c.text, 16, FontWeight.SemiBold)
+                        }
+                        StepButton(Icons.Filled.Add, Palette.blue, Color.White) {
+                            vm.incrementPlatform(date, drama.title, rec.platform, drama.isFast, 1); Haptics.tap()
+                        }
                     }
                 }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlineChip("添加平台", Icons.Filled.Add) { showAddPlatform = true }
-                OutlineChip("重命名", Icons.Filled.Edit) { showRename = true }
-                OutlineChip("删除", Icons.Filled.Delete, tint = Palette.red) { showDelete = true }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlineChip("添加平台", Icons.Filled.Add) { showAddPlatform = true }
+                    OutlineChip("重命名", Icons.Filled.Edit) { showRename = true }
+                    OutlineChip("删除", Icons.Filled.Delete, tint = Palette.red) { showDelete = true }
+                }
             }
         }
     }
@@ -130,29 +172,30 @@ fun DramaCard(vm: AppViewModel, date: String, drama: Drama, isLatest: Boolean) {
 
 @Composable
 private fun StepButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     bg: Color,
+    iconTint: Color,
     onClick: () -> Unit,
 ) {
     PressableCard(onClick = onClick) {
         Box(
-            Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(bg),
+            Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(bg),
             contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+        ) { Icon(icon, null, tint = iconTint, modifier = Modifier.size(17.dp)) }
     }
 }
 
 @Composable
 private fun OutlineChip(
     text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     tint: Color = AppColorsHolder.textSub,
     onClick: () -> Unit,
 ) {
     PressableCard(onClick = onClick) {
         Row(
             Modifier.clip(RoundedCornerShape(10.dp)).background(AppColorsHolder.cardElev)
-                .padding(horizontal = 10.dp, vertical = 7.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(14.dp))

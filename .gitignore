@@ -15,5 +15,11 @@ captures/
 .DS_Store
 Thumbs.db
 
+# Local build outputs
+apk/
+*.apk
+*.aab
+*.zip
+
 # Logs
 *.log

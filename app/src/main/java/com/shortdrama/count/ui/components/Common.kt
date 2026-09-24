@@ -1,9 +1,9 @@
 package com.shortdrama.count.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -11,17 +11,14 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -46,7 +43,11 @@ fun PressableCard(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, label = "pressScale")
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium),
+        label = "pressScale",
+    )
     Box(
         modifier = modifier
             .scale(scale)
@@ -59,10 +60,31 @@ fun PressableCard(
     ) { content() }
 }
 
+/** 带弹性缩放的数字（值变化时先放大再回弹） */
+@Composable
+fun BounceNumber(
+    value: Int,
+    color: Color,
+    size: Int = 16,
+    fontWeight: FontWeight = FontWeight.SemiBold,
+) {
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(value) {
+        scale.snapTo(1.35f)
+        scale.animateTo(1f, animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMedium))
+    }
+    Text(
+        value.toString(),
+        color = color,
+        fontSize = size.sp,
+        fontWeight = fontWeight,
+        modifier = Modifier.scale(scale.value),
+    )
+}
+
 @Composable
 fun AnimatedNumber(value: Int, color: Color = AppColorsHolder.text, size: Int = 16) {
-    val animated by animateIntAsState(targetValue = value, animationSpec = spring(dampingRatio = 0.6f), label = "num")
-    Text("$animated", color = color, fontSize = size.sp, fontWeight = FontWeight.SemiBold)
+    BounceNumber(value, color, size)
 }
 
 @Composable

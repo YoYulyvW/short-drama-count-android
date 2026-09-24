@@ -451,7 +451,10 @@ class AppViewModel : ViewModel() {
         _scanningDevices.value = true
         _pushDevices.value = emptyList()
         viewModelScope.launch {
-            val devices = DeviceDiscovery.scan(LanServer.port.coerceAtLeast(8080))
+            val devices = DeviceDiscovery.scan(
+                if (LanServer.port > 0) LanServer.port else LanServer.DEFAULT_PORT,
+                timeoutMs = 800,
+            )
             _pushDevices.value = devices
             _scanningDevices.value = false
             if (devices.isEmpty()) showToast("未发现局域网内的其他设备", ToastStyle.ERROR)

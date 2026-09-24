@@ -23,7 +23,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  *   GET  /       -> 简单提示页
  */
 object LanServer {
-    private val preferredPorts = listOf(8080, 8081, 8181, 8888, 9988)
+    // 与 iOS 保持一致，主用 8848，占用时依次回退
+    private val preferredPorts = listOf(8848, 8849, 8850, 8851, 8852)
+    const val DEFAULT_PORT = 8848
+    const val BROADCAST_PORT = 8849   // iOS 广播目标端口
+    const val HANDSHAKE_PORT = 8850   // 电脑端 TCP 握手端口
 
     private var serverSocket: ServerSocket? = null
     private var acceptJob: Job? = null
@@ -50,6 +54,7 @@ object LanServer {
                 serverSocket = ss
                 port = tryPort
                 running = true
+                scope?.launch { startBroadcast() }
                 while (running) {
                     val sock = try { ss.accept() } catch (e: Exception) { break }
                     scope?.launch { handleConnection(sock) }
@@ -59,6 +64,42 @@ object LanServer {
                 continue
             }
         }
+    }
+
+    // MARK: - UDP 广播（对齐 iOS：magic=KFL, action=hello, port=自身端口）
+    private suspend fun startBroadcast() {
+        val targets = broadcastAddresses()
+        val payload = "{\"magic\":\"KFL\",\"action\":\"hello\",\"port\":" + port + "}"
+        val data = payload.toByteArray(Charsets.UTF_8)
+        repeat(3) { idx ->
+            if (!running) return
+            try {
+                java.net.DatagramSocket().use { sock ->
+                    sock.broadcast = true
+                    for (t in targets) {
+                        try {
+                            val addr = java.net.InetAddress.getByName(t)
+                            val pkt = java.net.DatagramPacket(data, data.size, addr, BROADCAST_PORT)
+                            sock.send(pkt)
+                        } catch (_: Exception) {}
+                    }
+                }
+            } catch (_: Exception) {}
+            if (idx < 2) kotlinx.coroutines.delay(800)
+        }
+    }
+
+    private fun broadcastAddresses(): List<String> {
+        val list = mutableListOf<String>()
+        try {
+            val ip = DeviceDiscovery.localIpv4()
+            if (ip != null) {
+                val parts = ip.split(".")
+                if (parts.size == 4) list.add(parts[0] + "." + parts[1] + "." + parts[2] + ".255")
+            }
+        } catch (_: Exception) {}
+        list.add("255.255.255.255")
+        return list
     }
 
     fun stop() {

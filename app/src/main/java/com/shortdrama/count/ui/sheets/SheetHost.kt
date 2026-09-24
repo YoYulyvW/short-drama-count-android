@@ -74,7 +74,7 @@ fun rememberNavigationBarHeightPx(): Int {
         }
         root.setOnApplyWindowInsetsListener(listener)
         root.requestApplyInsets()
-        androidx.compose.runtime.onDispose {
+        onDispose {
             root.setOnApplyWindowInsetsListener(null)
         }
     }

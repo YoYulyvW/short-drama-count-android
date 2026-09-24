@@ -76,6 +76,11 @@ object LanServer {
                 continue
             }
         }
+        if (!running) {
+            _running.value = false
+            _port.value = 0
+            _lastError.value = "所有端口都不可用"
+        }
     }
 
     // MARK: - UDP 广播（对齐 iOS：magic=KFL, action=hello, port=自身端口）

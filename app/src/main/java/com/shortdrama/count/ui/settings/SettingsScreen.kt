@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shortdrama.count.model.RemoteDatabaseType
-import com.shortdrama.count.ui.components.SectionCard
+import com.shortdrama.count.ui.components.CollapsibleCard
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
 import com.shortdrama.count.ui.theme.parseHex
@@ -58,7 +58,7 @@ fun SettingsScreen(vm: AppViewModel) {
         item { Text("设置", color = c.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
 
         item {
-            SectionCard(title = "反馈") {
+            CollapsibleCard(title = "反馈", subtitle = "震动 / 音效") {
                 Column {
                     SwitchRow("震动反馈", settings.hapticFeedback) {
                         vm.updateSettings(settings.copy(hapticFeedback = it)); vm.saveSettings()
@@ -71,7 +71,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "显示") {
+            CollapsibleCard(title = "显示", subtitle = "折叠 / 工具 / 排序") {
                 Column {
                     SwitchRow("自动折叠", settings.autoCollapse) {
                         vm.updateSettings(settings.copy(autoCollapse = it)); vm.saveSettings()
@@ -103,7 +103,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "平台") {
+            CollapsibleCard(title = "平台", subtitle = settings.platforms.size.toString() + " 个") {
                 Column {
                     settings.platforms.forEach { cfg ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
@@ -118,7 +118,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "局域网服务") {
+            CollapsibleCard(title = "局域网服务", subtitle = if (lanRunning) "运行中" else "已关闭") {
                 Column {
                     SwitchRow("启用局域网输入", settings.lanEnabled) {
                         vm.updateSettings(settings.copy(lanEnabled = it)); vm.saveSettings()
@@ -171,7 +171,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "远程同步") {
+            CollapsibleCard(title = "远程同步", subtitle = if (settings.remoteEnabled) "已启用" else "未启用") {
                 Column {
                     SwitchRow("启用远程同步", settings.remoteEnabled) {
                         vm.updateSettings(settings.copy(remoteEnabled = it)); vm.saveSettings()
@@ -206,7 +206,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "更新") {
+            CollapsibleCard(title = "更新", subtitle = "v" + com.shortdrama.count.model.AppVersion.name) {
                 Column {
                     SwitchRow("自动检查更新", settings.autoUpdateCheck) {
                         vm.updateSettings(settings.copy(autoUpdateCheck = it)); vm.saveSettings()
@@ -239,7 +239,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "数据备份") {
+            CollapsibleCard(title = "数据备份", subtitle = "导出 / 导入") {
                 Column {
                     Text("卸载重装后数据仍在：系统会询问是否保留应用数据（Android 10+）。",
                         color = c.textSub, fontSize = 11.sp)
@@ -263,7 +263,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "关于") {
+            CollapsibleCard(title = "关于") {
                 Column {
                     Text("开饭了 · 短剧计数（Android）", color = c.text, fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))

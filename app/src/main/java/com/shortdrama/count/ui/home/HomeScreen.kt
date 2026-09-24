@@ -39,7 +39,7 @@ fun HomeScreen(vm: AppViewModel) {
     val date by vm.currentDate.collectAsState()
     val settings by vm.settings.collectAsState()
     val dateStr = AppConstants.dateString(date)
-    Column(Modifier.fillMaxSize().background(AppColorsHolder.bg).statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(AppColorsHolder.bg)) {
         TopInfoBar(vm, dateStr)
         TitleInputBar(vm, dateStr)
         if (settings.showQuickTools) ToolBar(vm)

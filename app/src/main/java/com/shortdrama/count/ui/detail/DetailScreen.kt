@@ -38,7 +38,7 @@ fun DetailScreen(vm: AppViewModel) {
     val c = AppColorsHolder
 
     LazyColumn(
-        Modifier.fillMaxSize().background(c.bg).statusBarsPadding(),
+        Modifier.fillMaxSize().background(c.bg),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

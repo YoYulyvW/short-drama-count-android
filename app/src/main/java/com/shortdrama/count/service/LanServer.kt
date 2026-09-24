@@ -33,6 +33,15 @@ object LanServer {
     private var acceptJob: Job? = null
     private var scope: CoroutineScope? = null
 
+    private val _running = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val runningFlow: kotlinx.coroutines.flow.StateFlow<Boolean> = _running
+
+    private val _port = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val portFlow: kotlinx.coroutines.flow.StateFlow<Int> = _port
+
+    private val _lastError = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val lastError: kotlinx.coroutines.flow.StateFlow<String?> = _lastError
+
     @Volatile var running: Boolean = false
         private set
     @Volatile var port: Int = 0
@@ -54,6 +63,9 @@ object LanServer {
                 serverSocket = ss
                 port = tryPort
                 running = true
+                _running.value = true
+                _port.value = tryPort
+                _lastError.value = null
                 scope?.launch { startBroadcast() }
                 while (running) {
                     val sock = try { ss.accept() } catch (e: Exception) { break }

@@ -98,6 +98,17 @@ class AppViewModel : ViewModel() {
 
     val currentDateString: String get() = AppConstants.dateString(_currentDate.value)
 
+    // 局域网服务状态（供设置页展示）
+    val lanRunning: StateFlow<Boolean> = LanServer.runningFlow
+    val lanPort: StateFlow<Int> = LanServer.portFlow
+
+    private val _lanIp = MutableStateFlow<String?>(null)
+    val lanIp: StateFlow<String?> = _lanIp.asStateFlow()
+
+    fun refreshLanIp() {
+        _lanIp.value = DeviceDiscovery.localIpv4()
+    }
+
     init {
         viewModelScope.launch {
             LanServer.pushEvents.collect { payload -> handleIncomingPush(payload) }
@@ -137,7 +148,16 @@ class AppViewModel : ViewModel() {
     }
 
     private fun applyLanSetting() {
-        if (_settings.value.lanEnabled) LanServer.start() else LanServer.stop()
+        if (_settings.value.lanEnabled) {
+            LanServer.start()
+            viewModelScope.launch {
+                delay(300)
+                _lanIp.value = DeviceDiscovery.localIpv4()
+            }
+        } else {
+            LanServer.stop()
+            _lanIp.value = null
+        }
     }
 
     // ---------- 日期 ----------

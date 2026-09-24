@@ -53,19 +53,40 @@ fun SheetHost(vm: AppViewModel) {
 }
 
 /**
- * 内容统一底部内边距。
- * ModalBottomSheet 内 WindowInsets.navigationBars 常常为 0，
- * 因此直接从根窗口（Activity window）读取真实导航栏高度，确保弹窗底部不被遮挡。
+ * 读取系统导航栏真实高度（px）。
+ * ModalBottomSheet 内的 WindowInsets 常常为 0，这里从 Activity decorView 直接读取，
+ * 并监听变化，保证任何状态下都能拿到真实高度。
  */
 @Composable
-fun Modifier.sheetContentPadding(): Modifier {
+fun rememberNavigationBarHeightPx(): Int {
     val view = androidx.compose.ui.platform.LocalView.current
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val navBottomPx = androidx.compose.runtime.remember(view) {
-        val insets = androidx.core.view.ViewCompat.getRootWindowInsets(view)
-        insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+    var bottomPx by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableIntStateOf(
+            androidx.core.view.ViewCompat.getRootWindowInsets(view)
+                ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        )
     }
-    val bottomDp = with(density) { navBottomPx.toDp() }
+    androidx.compose.runtime.DisposableEffect(view) {
+        val root = view.rootView
+        val listener = android.view.View.OnApplyWindowInsetsListener { _, insets ->
+            bottomPx = insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
+            insets
+        }
+        root.setOnApplyWindowInsetsListener(listener)
+        root.requestApplyInsets()
+        androidx.compose.runtime.onDispose {
+            root.setOnApplyWindowInsetsListener(null)
+        }
+    }
+    return bottomPx
+}
+
+/** 内容统一底部内边距 + 高度限制，确保底部按钮可见 */
+@Composable
+fun Modifier.sheetContentPadding(): Modifier {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val bottomPx = rememberNavigationBarHeightPx()
+    val bottomDp = with(density) { bottomPx.toDp() }
     return this.padding(bottom = bottomDp + 24.dp)
 }
 
@@ -80,6 +101,7 @@ private fun ImportSheet(vm: AppViewModel) {
 
     Column(
         Modifier.fillMaxWidth()
+            .heightIn(max = 620.dp)
             .verticalScroll(rememberScrollState())
             .sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
@@ -126,7 +148,9 @@ private fun ExportTextSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val text = vm.exportText(date)
     Column(
-        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().heightIn(max = 620.dp)
+            .verticalScroll(rememberScrollState())
+            .sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("明文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
@@ -159,7 +183,9 @@ private fun ExportCodeSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val code = remember(date) { vm.exportShareCode(date) }
     Column(
-        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().heightIn(max = 620.dp)
+            .verticalScroll(rememberScrollState())
+            .sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("密文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))

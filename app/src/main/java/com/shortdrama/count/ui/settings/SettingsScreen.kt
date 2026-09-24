@@ -9,6 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,6 +27,10 @@ fun SettingsScreen(vm: AppViewModel) {
     val settings by vm.settings.collectAsState()
     val lastMessage by vm.lastMessage.collectAsState()
     val syncStatus by vm.lastSyncStatus.collectAsState()
+    val lanRunning by vm.lanRunning.collectAsState()
+    val lanPort by vm.lanPort.collectAsState()
+    val lanIp by vm.lanIp.collectAsState()
+    val clipboard = LocalClipboardManager.current
     val c = AppColorsHolder
 
     LazyColumn(
@@ -95,14 +101,53 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
-            SectionCard(title = "局域网推送") {
+            SectionCard(title = "局域网服务") {
                 Column {
-                    SwitchRow("启用局域网服务", settings.lanEnabled) {
+                    SwitchRow("启用局域网输入", settings.lanEnabled) {
                         vm.updateSettings(settings.copy(lanEnabled = it)); vm.saveSettings()
+                        vm.refreshLanIp()
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Button(onClick = { vm.scanDevicesForPush() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("扫描设备并推送")
+                    if (settings.lanEnabled) {
+                        Spacer(Modifier.height(10.dp))
+                        // 服务状态
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp))
+                                .background(if (lanRunning) Palette.green else Palette.orange))
+                            Spacer(Modifier.width(8.dp))
+                            Text("服务状态", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text(if (lanRunning) "运行中" else "未运行",
+                                color = if (lanRunning) Palette.green else Palette.orange,
+                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        val ip = lanIp
+                        if (ip != null && lanRunning) {
+                            val url = "http://" + ip + ":" + lanPort
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("访问地址", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text(url, color = Palette.blue, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Row {
+                                TextButton(onClick = {
+                                    clipboard.setText(AnnotatedString(url))
+                                    vm.showToast("已复制地址", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                                }) { Text("复制地址") }
+                                Spacer(Modifier.weight(1f))
+                                TextButton(onClick = { vm.refreshLanIp() }) { Text("刷新") }
+                            }
+                        } else if (!lanRunning) {
+                            Text("服务未运行，请检查端口占用", color = Palette.orange, fontSize = 12.sp)
+                        } else {
+                            Text("未连接 WiFi，无法获取局域网 IP", color = Palette.orange, fontSize = 12.sp)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { vm.scanDevicesForPush() }, modifier = Modifier.fillMaxWidth()) {
+                            Text("扫描设备并推送")
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text("在同一 WiFi 下用浏览器打开上方地址即可输入；App 需保持前台。",
+                            color = c.textSub, fontSize = 11.sp)
                     }
                 }
             }

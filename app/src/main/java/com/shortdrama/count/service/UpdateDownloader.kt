@@ -38,10 +38,12 @@ object UpdateDownloader {
             _currentVersion.value = version
             deleteExistingApk()
 
-            // 依次尝试：代理URL → 直连
+            // 依次尝试：自定义代理 → 内置代理 → 直连
             val candidates = mutableListOf<String>()
-            val np = UpdateChecker.normalizeProxy(proxy)
-            if (np.isNotEmpty()) candidates.add(np + url)
+            for (p in UpdateChecker.effectiveProxies(proxy)) {
+                val candidate = p + url
+                if (!candidates.contains(candidate)) candidates.add(candidate)
+            }
             if (!candidates.contains(url)) candidates.add(url)
 
             var lastErr: Exception? = null

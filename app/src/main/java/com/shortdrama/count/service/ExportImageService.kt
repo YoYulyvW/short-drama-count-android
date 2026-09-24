@@ -26,6 +26,7 @@ object ExportImageService {
         if (dramas.isEmpty()) return null
 
         val valid = dramas.filter { d -> day.records.any { r -> r.title == d.title && r.isFast == d.isFast } }
+        if (valid.isEmpty()) return null
         val rowsTop = M + heroH + 24
         val rowsBottom = rowsTop + valid.size * (rowH + 8)
         val sumTop = rowsBottom + 16

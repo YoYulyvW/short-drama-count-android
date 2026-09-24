@@ -3,7 +3,6 @@ package com.shortdrama.count.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -87,6 +87,10 @@ fun AnimatedNumber(value: Int, color: Color = AppColorsHolder.text, size: Int = 
     BounceNumber(value, color, size)
 }
 
+/**
+ * 渐变 Hero 卡片。
+ * 关键：shadow 必须在 clip 之前，否则阴影会被裁剪成深色边圈。
+ */
 @Composable
 fun HeroCard(
     gradient: List<Color>,
@@ -97,11 +101,21 @@ fun HeroCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = if (colors.isDark) 0.dp else 6.dp,
+                shape = RoundedCornerShape(22.dp),
+                clip = false,
+                ambientColor = Color(0x33000000),
+                spotColor = Color(0x33000000),
+            )
             .clip(RoundedCornerShape(22.dp))
-            .background(Brush.linearGradient(gradient))
-            .then(if (colors.isDark) Modifier.background(Color.Black.copy(alpha = 0.15f)) else Modifier)
-            .shadow(if (colors.isDark) 0.dp else 8.dp, RoundedCornerShape(22.dp))
-    ) { content() }
+            .background(Brush.linearGradient(gradient)),
+    ) {
+        if (colors.isDark) {
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.12f)))
+        }
+        content()
+    }
 }
 
 @Composable

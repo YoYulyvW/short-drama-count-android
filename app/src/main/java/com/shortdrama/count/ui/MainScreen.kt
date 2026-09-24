@@ -1,10 +1,7 @@
 package com.shortdrama.count.ui
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
@@ -24,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.shortdrama.count.ui.detail.DetailScreen
 import com.shortdrama.count.ui.home.HomeScreen
 import com.shortdrama.count.ui.month.MonthStatsScreen
@@ -49,15 +47,13 @@ fun MainScreen(vm: AppViewModel) {
             NavigationBar(
                 containerColor = c.card,
                 tonalElevation = 0.dp,
-                modifier = Modifier.height(64.dp),
-                windowInsets = WindowInsets.navigationBars,
             ) {
                 tabs.forEachIndexed { index, (label, icon) ->
                     NavigationBarItem(
                         selected = tab == index,
                         onClick = { tab = index },
-                        icon = { Icon(icon, contentDescription = label, modifier = Modifier.height(22.dp)) },
-                        label = { Text(label, fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp)) },
+                        icon = { Icon(icon, contentDescription = label) },
+                        label = { Text(label, fontSize = 11.sp) },
                         alwaysShowLabel = true,
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Palette.blue,

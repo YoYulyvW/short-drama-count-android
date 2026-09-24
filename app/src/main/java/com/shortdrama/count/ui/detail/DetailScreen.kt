@@ -38,7 +38,7 @@ fun DetailScreen(vm: AppViewModel) {
     val c = AppColorsHolder
 
     LazyColumn(
-        Modifier.fillMaxSize().background(c.bg),
+        Modifier.fillMaxSize().background(c.bg).statusBarsPadding(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -95,7 +95,7 @@ fun DetailScreen(vm: AppViewModel) {
         }
         item { Text("短剧明细", color = c.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
         val dramas = day?.dramas?.reversed() ?: emptyList()
-        val detailed = dramas.filter { d -> day!!.records.any { it.title == d.title && it.isFast == d.isFast } }
+        val detailed = dramas.filter { d -> day?.records?.any { it.title == d.title && it.isFast == d.isFast } == true }
         if (detailed.isEmpty()) {
             item {
                 Text("还没有明细", color = c.textSub, fontSize = 13.sp,
@@ -103,7 +103,7 @@ fun DetailScreen(vm: AppViewModel) {
             }
         } else {
             items(detailed, key = { it.id }) { drama ->
-                val recs = day!!.records.filter { it.title == drama.title && it.isFast == drama.isFast }
+                val recs = day?.records?.filter { it.title == drama.title && it.isFast == drama.isFast } ?: emptyList()
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card).padding(14.dp)
                 ) {

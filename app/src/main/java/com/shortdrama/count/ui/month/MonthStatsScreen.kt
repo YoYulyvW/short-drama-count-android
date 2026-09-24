@@ -71,7 +71,7 @@ fun MonthStatsScreen(vm: AppViewModel) {
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(1),
-        modifier = Modifier.fillMaxSize().background(c.bg),
+        modifier = Modifier.fillMaxSize().background(c.bg).statusBarsPadding(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

@@ -38,6 +38,8 @@ fun SheetHost(vm: AppViewModel) {
     ModalBottomSheet(
         onDismissRequest = { vm.setActiveSheet(null) },
         containerColor = AppColorsHolder.bg,
+        // 关闭 sheet 默认 inset 处理，避免与内容 padding 冲突
+        windowInsets = WindowInsets(0, 0, 0, 0),
     ) {
         when (sheet) {
             ActiveSheet.IMPORT_DATA -> ImportSheet(vm)
@@ -51,6 +53,14 @@ fun SheetHost(vm: AppViewModel) {
     }
 }
 
+/** 内容统一底部间距：导航栏 / 输入法取较大值 + 24dp */
+@Composable
+private fun sheetBottomPadding(): androidx.compose.ui.unit.Dp {
+    val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val ime = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    return maxOf(nav, ime) + 24.dp
+}
+
 @Composable
 private fun ImportSheet(vm: AppViewModel) {
     val c = AppColorsHolder
@@ -62,10 +72,10 @@ private fun ImportSheet(vm: AppViewModel) {
 
     Column(
         Modifier.fillMaxWidth()
-            .navigationBarsPadding()
             .imePadding()
-            .padding(20.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = sheetBottomPadding()),
     ) {
         Text("导入数据", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -100,7 +110,6 @@ private fun ImportSheet(vm: AppViewModel) {
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) { Text("导入到 " + date) }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -111,7 +120,8 @@ private fun ExportTextSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val text = vm.exportText(date)
     Column(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = sheetBottomPadding()),
     ) {
         Text("明文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
@@ -119,7 +129,7 @@ private fun ExportTextSheet(vm: AppViewModel) {
             Text("当前日期没有数据", color = c.textSub, fontSize = 13.sp)
         } else {
             Box(
-                Modifier.fillMaxWidth().heightIn(max = 320.dp).clip(RoundedCornerShape(12.dp))
+                Modifier.fillMaxWidth().heightIn(max = 300.dp).clip(RoundedCornerShape(12.dp))
                     .background(c.card).padding(12.dp).verticalScroll(rememberScrollState())
             ) {
                 Text(text, color = c.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
@@ -134,7 +144,6 @@ private fun ExportTextSheet(vm: AppViewModel) {
                 Spacer(Modifier.width(8.dp)); Text("复制")
             }
         }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -145,7 +154,8 @@ private fun ExportCodeSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val code = remember(date) { vm.exportShareCode(date) }
     Column(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = sheetBottomPadding()),
     ) {
         Text("密文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -155,7 +165,7 @@ private fun ExportCodeSheet(vm: AppViewModel) {
             Text("当前日期没有数据", color = c.textSub, fontSize = 13.sp)
         } else {
             Box(
-                Modifier.fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(12.dp))
+                Modifier.fillMaxWidth().heightIn(max = 200.dp).clip(RoundedCornerShape(12.dp))
                     .background(c.card).padding(12.dp).verticalScroll(rememberScrollState())
             ) {
                 Text(code, color = c.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
@@ -170,7 +180,6 @@ private fun ExportCodeSheet(vm: AppViewModel) {
                 Spacer(Modifier.width(8.dp)); Text("复制")
             }
         }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -183,7 +192,8 @@ private fun ExportImageSheet(vm: AppViewModel) {
     val day = days[date]
 
     Column(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = sheetBottomPadding()),
     ) {
         Text("导出图片", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
@@ -196,11 +206,20 @@ private fun ExportImageSheet(vm: AppViewModel) {
                     if (bmp == null) {
                         vm.showToast("生成失败：无有效数据", ToastStyle.ERROR); return@Button
                     }
-                    val file = java.io.File(context.cacheDir, "drama_export.png")
-                    file.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-                    val ok = ImageShare.shareImage(context, file)
-                    if (ok) { Haptics.success() }
-                    else vm.showToast("分享失败，请检查系统应用", ToastStyle.ERROR)
+                    val name = "drama_export_" + System.currentTimeMillis() + ".png"
+                    val uri = ImageShare.saveToGallery(context, bmp, name)
+                    if (uri == null) {
+                        vm.showToast("保存失败，请检查存储权限", ToastStyle.ERROR); return@Button
+                    }
+                    val shared = ImageShare.shareUri(context, uri)
+                    if (shared) {
+                        vm.showToast("✅ 已保存到相册并分享", ToastStyle.SUCCESS)
+                        Haptics.success()
+                    } else {
+                        vm.showToast("✅ 已保存到相册", ToastStyle.SUCCESS)
+                        Haptics.success()
+                    }
+                    vm.setActiveSheet(null)
                 } catch (e: Exception) {
                     vm.showToast("生成失败：" + (e.message ?: "未知错误"), ToastStyle.ERROR)
                 }
@@ -208,7 +227,6 @@ private fun ExportImageSheet(vm: AppViewModel) {
                 Text("生成并分享")
             }
         }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -218,7 +236,8 @@ private fun UndoSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val snapshots = remember(date) { vm.undosFor(date) }
     Column(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = sheetBottomPadding()),
     ) {
         Text("回档", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -227,7 +246,7 @@ private fun UndoSheet(vm: AppViewModel) {
         if (snapshots.isEmpty()) {
             Text("暂无快照", color = c.textSub, fontSize = 13.sp)
         } else {
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(snapshots, key = { it.id }) { snap ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.card).padding(12.dp),
@@ -245,17 +264,18 @@ private fun UndoSheet(vm: AppViewModel) {
                 }
             }
         }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
 private fun QuickToolsSheet(vm: AppViewModel) {
     val c = AppColorsHolder
-    Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp)) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = sheetBottomPadding()),
+    ) {
         Text("快捷工具", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         Text("从首页工具行进入各功能", color = c.textSub, fontSize = 13.sp)
-        Spacer(Modifier.height(16.dp))
     }
 }

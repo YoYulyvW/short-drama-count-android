@@ -28,7 +28,7 @@ fun SettingsScreen(vm: AppViewModel) {
     val c = AppColorsHolder
 
     LazyColumn(
-        Modifier.fillMaxSize().background(c.bg),
+        Modifier.fillMaxSize().background(c.bg).statusBarsPadding(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

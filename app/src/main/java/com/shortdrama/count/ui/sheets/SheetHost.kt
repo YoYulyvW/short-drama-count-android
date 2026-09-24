@@ -38,6 +38,7 @@ fun SheetHost(vm: AppViewModel) {
     ModalBottomSheet(
         onDismissRequest = { vm.setActiveSheet(null) },
         containerColor = AppColorsHolder.bg,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
         when (sheet) {
             ActiveSheet.IMPORT_DATA -> ImportSheet(vm)
@@ -51,9 +52,22 @@ fun SheetHost(vm: AppViewModel) {
     }
 }
 
-/** 内容统一底部内边距：导航栏 + 输入法 + 24dp 呼吸空间 */
-fun Modifier.sheetContentPadding(): Modifier =
-    this.navigationBarsPadding().imePadding().padding(bottom = 24.dp)
+/**
+ * 内容统一底部内边距。
+ * ModalBottomSheet 内部导航栏 inset 常常为 0，这里显式读取根窗口的 navigationBars inset，
+ * 保证导入/导出等弹窗底部按钮不会被系统导航栏遮挡。
+ */
+@Composable
+fun Modifier.sheetContentPadding(): Modifier {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val navBottom = androidx.compose.foundation.layout.WindowInsets.navigationBars
+        .getBottom(density)
+    val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime
+        .getBottom(density)
+    val bottomPx = maxOf(navBottom, imeBottom)
+    val bottomDp = with(density) { bottomPx.toDp() }
+    return this.padding(bottom = bottomDp + 24.dp)
+}
 
 @Composable
 private fun ImportSheet(vm: AppViewModel) {

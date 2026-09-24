@@ -271,7 +271,7 @@ fun SettingsScreen(vm: AppViewModel) {
                 }
             }
         }
-        item { Spacer(Modifier.height(40.dp)) }
+        item { Spacer(Modifier.height(80.dp)) }
     }
 }
 

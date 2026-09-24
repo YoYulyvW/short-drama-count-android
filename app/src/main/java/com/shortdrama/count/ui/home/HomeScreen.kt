@@ -218,14 +218,14 @@ private fun TitleInputBar(vm: AppViewModel, dateStr: String) {
         }
         PressableCard(onClick = {
             val raw = title.trim()
+            val wasFast = fastInput
+            fastInput = false   // 无论成败都先取消勾选（对齐 iOS）
             if (raw.isEmpty()) {
                 Haptics.warning(); vm.showToast("请输入剧名", ToastStyle.ERROR)
             } else {
                 val (t, sf) = AppConstants.splitFast(raw)
-                val wasFast = fastInput
                 vm.addDrama(dateStr, t, wasFast || sf)
                 title = ""
-                fastInput = false   // 新增后立即取消勾选（对齐 iOS）
                 Haptics.success()
             }
         }) {

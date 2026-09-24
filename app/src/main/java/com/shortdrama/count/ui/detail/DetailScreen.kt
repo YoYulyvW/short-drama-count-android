@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.shortdrama.count.ui.detail
 
 import androidx.compose.foundation.background

@@ -67,7 +67,8 @@ object DeviceDiscovery {
                 if (remain > 0) t.join(remain)
             }
             results.sortedBy { dev ->
-                dev.ip.split(".").mapNotNull { it.toIntOrNull() }
+                dev.ip.split(".").mapNotNull { p -> p.toIntOrNull() }
+                    .joinToString(".") { n -> "%03d".format(n) }
             }
         }
 

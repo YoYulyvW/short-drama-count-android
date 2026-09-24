@@ -12,6 +12,7 @@ import com.shortdrama.count.service.UpdateDownloader
 import com.shortdrama.count.util.AppConstants
 import com.shortdrama.count.util.Haptics
 import com.shortdrama.count.util.ShareCode
+import com.shortdrama.count.util.ShareCodeException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow

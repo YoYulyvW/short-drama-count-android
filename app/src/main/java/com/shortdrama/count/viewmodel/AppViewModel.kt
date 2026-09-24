@@ -546,11 +546,17 @@ class AppViewModel : ViewModel() {
                     val pd = _pendingDownload.value
                     if (pd != null && pd.version == info.version) {
                         _downloadStatus.value = DownloadStatus.READY
-                        if (_settings.value.autoPromptInstall) _showUpdateAlert.value = true
+                        _showUpdateAlert.value = true
                         return@launch
                     }
-                    if (_settings.value.silentDownload) startDownload(info, manual = !silent)
-                    else _showUpdateAlert.value = true
+                    if (silent && _settings.value.silentDownload) {
+                        // 后台静默检查：只下载，不打扰
+                        startDownload(info, manual = false)
+                    } else {
+                        // 用户手动检查：弹出对话框（若开启静默下载则同时开始下载，对话框显示进度）
+                        _showUpdateAlert.value = true
+                        if (_settings.value.silentDownload) startDownload(info, manual = true)
+                    }
                 } else {
                     if (!silent) _lastMessage.value = "已是最新版本（${AppVersion.name}）"
                 }

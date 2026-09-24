@@ -1,4 +1,4 @@
-package com.shortdrama.count.ui.settings
+﻿package com.shortdrama.count.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -31,6 +31,23 @@ fun SettingsScreen(vm: AppViewModel) {
     val lanPort by vm.lanPort.collectAsState()
     val lanIp by vm.lanIp.collectAsState()
     val clipboard = LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val backupImportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                if (text != null && vm.importBackup(text)) {
+                    vm.showToast("备份导入成功", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                } else {
+                    vm.showToast("备份格式错误", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                }
+            } catch (e: Exception) {
+                vm.showToast("导入失败：" + e.message, com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+            }
+        }
+    }
     val c = AppColorsHolder
 
     LazyColumn(
@@ -217,6 +234,30 @@ fun SettingsScreen(vm: AppViewModel) {
                         Spacer(Modifier.height(6.dp))
                         Text(it, color = c.textSub, fontSize = 12.sp)
                     }
+                }
+            }
+        }
+
+        item {
+            SectionCard(title = "数据备份") {
+                Column {
+                    Text("卸载重装后数据仍在：系统会询问是否保留应用数据（Android 10+）。",
+                        color = c.textSub, fontSize = 11.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            val json = vm.exportBackup()
+                            val file = java.io.File(context.cacheDir, "shortdrama_backup.json")
+                            file.writeText(json)
+                            com.shortdrama.count.util.BackupShare.shareFile(context, file, "application/json", "导出备份")
+                        }, modifier = Modifier.weight(1f)) { Text("导出备份") }
+                        OutlinedButton(onClick = {
+                            backupImportLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                        }, modifier = Modifier.weight(1f)) { Text("导入备份") }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("导出为 JSON 文件，保存到任意位置；导入后覆盖当前数据。",
+                        color = c.textSub, fontSize = 11.sp)
                 }
             }
         }

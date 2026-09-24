@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.shortdrama.count.data.LocalDataSource
 import com.shortdrama.count.model.*
 import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import com.shortdrama.count.service.DeviceDiscovery
 import com.shortdrama.count.service.LanServer
 import com.shortdrama.count.service.UpdateChecker
@@ -562,7 +565,7 @@ class AppViewModel : ViewModel() {
         _manualDownloadActive.value = manual
         _downloadProgress.value = 0.0
         viewModelScope.launch {
-            val res = UpdateDownloader.startDownload(info.apiAssetURL, info.version)
+            val res = UpdateDownloader.startDownload(info.apiAssetURL, info.version, _settings.value.customUpdateProxy)
             res.onSuccess { file ->
                 val pd = PendingDownload(info.version, file.absolutePath, System.currentTimeMillis(), file.length())
                 _pendingDownload.value = pd
@@ -677,6 +680,190 @@ class AppViewModel : ViewModel() {
         }
     }
     fun clearToast() { _toast.value = null }
+
+    /** 导出全部数据为 JSON 字符串（备份用） */
+    fun exportBackup(): String {
+        val daysJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.MapSerializer(
+                    kotlinx.serialization.builtins.serializer<String>(),
+                    DayData.serializer()), _days.value)
+        val undosJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), _undos.value)
+        val settingsJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(AppSettings.serializer(), _settings.value)
+        val obj = kotlinx.serialization.json.buildJsonObject {
+            put("days", kotlinx.serialization.json.Json.parseToJsonElement(daysJson))
+            put("undos", kotlinx.serialization.json.Json.parseToJsonElement(undosJson))
+            put("settings", kotlinx.serialization.json.Json.parseToJsonElement(settingsJson))
+        }
+        return obj.toString()
+    }
+
+    /** 从备份 JSON 恢复 */
+    fun importBackup(json: String): Boolean {
+        return try {
+            val root = kotlinx.serialization.json.Json.parseToJsonElement(json).jsonObject
+            val j = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
+            root["days"]?.let {
+                _days.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.MapSerializer(
+                        kotlinx.serialization.builtins.serializer<String>(),
+                        DayData.serializer()), it)
+            }
+            root["undos"]?.let {
+                _undos.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), it)
+            }
+            root["settings"]?.let {
+                _settings.value = j.decodeFromJsonElement(AppSettings.serializer(), it)
+            }
+            saveSettings()
+            viewModelScope.launch { withContext(Dispatchers.IO) {
+                source.saveDays(_days.value); source.saveUndos(_undos.value)
+            } }
+            true
+        } catch (e: Exception) { false }
+    }
+
+    /** 导出全部数据为 JSON 字符串（备份用） */
+    fun exportBackup(): String {
+        val daysJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.MapSerializer(
+                    kotlinx.serialization.builtins.serializer<String>(),
+                    DayData.serializer()), _days.value)
+        val undosJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), _undos.value)
+        val settingsJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(AppSettings.serializer(), _settings.value)
+        val obj = kotlinx.serialization.json.buildJsonObject {
+            put("days", kotlinx.serialization.json.Json.parseToJsonElement(daysJson))
+            put("undos", kotlinx.serialization.json.Json.parseToJsonElement(undosJson))
+            put("settings", kotlinx.serialization.json.Json.parseToJsonElement(settingsJson))
+        }
+        return obj.toString()
+    }
+
+    /** 从备份 JSON 恢复 */
+    fun importBackup(json: String): Boolean {
+        return try {
+            val root = kotlinx.serialization.json.Json.parseToJsonElement(json).jsonObject
+            val j = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
+            root["days"]?.let {
+                _days.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.MapSerializer(
+                        kotlinx.serialization.builtins.serializer<String>(),
+                        DayData.serializer()), it)
+            }
+            root["undos"]?.let {
+                _undos.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), it)
+            }
+            root["settings"]?.let {
+                _settings.value = j.decodeFromJsonElement(AppSettings.serializer(), it)
+            }
+            saveSettings()
+            viewModelScope.launch { withContext(Dispatchers.IO) {
+                source.saveDays(_days.value); source.saveUndos(_undos.value)
+            } }
+            true
+        } catch (e: Exception) { false }
+    }
+
+    /** 导出全部数据为 JSON 字符串（备份用） */
+    fun exportBackup(): String {
+        val daysJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.MapSerializer(
+                    kotlinx.serialization.builtins.serializer<String>(),
+                    DayData.serializer()), _days.value)
+        val undosJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), _undos.value)
+        val settingsJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(AppSettings.serializer(), _settings.value)
+        val obj = kotlinx.serialization.json.buildJsonObject {
+            put("days", kotlinx.serialization.json.Json.parseToJsonElement(daysJson))
+            put("undos", kotlinx.serialization.json.Json.parseToJsonElement(undosJson))
+            put("settings", kotlinx.serialization.json.Json.parseToJsonElement(settingsJson))
+        }
+        return obj.toString()
+    }
+
+    /** 从备份 JSON 恢复 */
+    fun importBackup(json: String): Boolean {
+        return try {
+            val root = kotlinx.serialization.json.Json.parseToJsonElement(json).jsonObject
+            val j = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
+            root["days"]?.let {
+                _days.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.MapSerializer(
+                        kotlinx.serialization.builtins.serializer<String>(),
+                        DayData.serializer()), it)
+            }
+            root["undos"]?.let {
+                _undos.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), it)
+            }
+            root["settings"]?.let {
+                _settings.value = j.decodeFromJsonElement(AppSettings.serializer(), it)
+            }
+            saveSettings()
+            viewModelScope.launch { withContext(Dispatchers.IO) {
+                source.saveDays(_days.value); source.saveUndos(_undos.value)
+            } }
+            true
+        } catch (e: Exception) { false }
+    }
+
+    /** 导出全部数据为 JSON 字符串（备份用） */
+    fun exportBackup(): String {
+        val daysJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.MapSerializer(
+                    kotlinx.serialization.builtins.serializer<String>(),
+                    DayData.serializer()), _days.value)
+        val undosJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), _undos.value)
+        val settingsJson = kotlinx.serialization.json.Json { encodeDefaults = true }
+            .encodeToString(AppSettings.serializer(), _settings.value)
+        val obj = kotlinx.serialization.json.buildJsonObject {
+            put("days", kotlinx.serialization.json.Json.parseToJsonElement(daysJson))
+            put("undos", kotlinx.serialization.json.Json.parseToJsonElement(undosJson))
+            put("settings", kotlinx.serialization.json.Json.parseToJsonElement(settingsJson))
+        }
+        return obj.toString()
+    }
+
+    /** 从备份 JSON 恢复 */
+    fun importBackup(json: String): Boolean {
+        return try {
+            val root = kotlinx.serialization.json.Json.parseToJsonElement(json).jsonObject
+            val j = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
+            root["days"]?.let {
+                _days.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.MapSerializer(
+                        kotlinx.serialization.builtins.serializer<String>(),
+                        DayData.serializer()), it)
+            }
+            root["undos"]?.let {
+                _undos.value = j.decodeFromJsonElement(
+                    kotlinx.serialization.builtins.ListSerializer(UndoSnapshot.serializer()), it)
+            }
+            root["settings"]?.let {
+                _settings.value = j.decodeFromJsonElement(AppSettings.serializer(), it)
+            }
+            saveSettings()
+            viewModelScope.launch { withContext(Dispatchers.IO) {
+                source.saveDays(_days.value); source.saveUndos(_undos.value)
+            } }
+            true
+        } catch (e: Exception) { false }
+    }
 
     fun consumePendingImport() {
         _pendingImportText.value = null

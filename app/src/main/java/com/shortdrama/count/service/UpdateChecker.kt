@@ -4,8 +4,7 @@ import com.shortdrama.count.model.ReleaseInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
@@ -14,14 +13,12 @@ import java.net.URL
 
 object UpdateChecker {
     private const val owner = "YoYulyvW"
-    private const val repo = "short-drama-count-releases"
+    private const val repo = "short-drama-count-android"
 
     val builtinProxies = listOf(
         "https://oo6.cc/proxy/",
         "https://lyvw.eu.org/proxy/",
     )
-
-    private val rawLatestURL = "https://raw.githubusercontent.com/" + owner + "/" + repo + "/refs/heads/main/latest.json"
 
     fun normalizeProxy(raw: String): String {
         var s = raw.trim()
@@ -41,22 +38,22 @@ object UpdateChecker {
 
     suspend fun fetchLatestInfo(customProxy: String = ""): ReleaseInfo =
         withContext(Dispatchers.IO) {
-            val proxies = effectiveProxies(customProxy)
+            val apiURL = "https://api.github.com/repos/$owner/$repo/releases/latest"
             var lastError: Exception? = null
-            // 先尝试代理读取 latest.json
-            for (proxy in proxies) {
+
+            // 1) 先尝试代理读取 GitHub API
+            for (proxy in effectiveProxies(customProxy)) {
                 try {
-                    val url = proxy + rawLatestURL
-                    val text = httpGetText(url)
-                    if (text.isNotEmpty()) return@withContext parseLatestJson(text)
+                    val text = httpGetText(proxy + apiURL)
+                    if (text.isNotEmpty()) return@withContext parseReleaseJson(text)
                 } catch (e: Exception) { lastError = e }
             }
-            // 兜底：GitHub API
+            // 2) 直连
             try {
-                val apiURL = "https://api.github.com/repos/" + owner + "/" + repo + "/releases/latest"
                 val text = httpGetText(apiURL)
                 if (text.isNotEmpty()) return@withContext parseReleaseJson(text)
             } catch (e: Exception) { lastError = e }
+
             throw lastError ?: Exception("无法获取版本信息")
         }
 
@@ -64,7 +61,7 @@ object UpdateChecker {
         try {
             val p = normalizeProxy(proxy)
             if (p.isEmpty()) return@withContext "未配置代理"
-            val text = httpGetText(p + rawLatestURL)
+            val text = httpGetText(p + "https://api.github.com/repos/$owner/$repo/releases/latest")
             if (text.isEmpty()) "空响应" else null
         } catch (e: Exception) { e.message ?: "请求失败" }
     }
@@ -75,53 +72,39 @@ object UpdateChecker {
         conn.connectTimeout = 15000
         conn.readTimeout = 15000
         conn.requestMethod = "GET"
-        conn.setRequestProperty("Accept", "application/json")
+        conn.setRequestProperty("Accept", "application/vnd.github+json")
         conn.setRequestProperty("User-Agent", "ShortDramaCount-Android")
         val code = conn.responseCode
         if (code !in 200..299) return ""
         return conn.inputStream.bufferedReader().use { it.readText() }
     }
 
-    private fun parseLatestJson(text: String): ReleaseInfo {
-        val obj = Json.parseToJsonElement(text).jsonObject
-        return ReleaseInfo(
-            version = obj["version"]?.jsonPrimitive?.content ?: "",
-            tagName = obj["tag_name"]?.jsonPrimitive?.content ?: "",
-            assetId = obj["asset_id"]?.jsonPrimitive?.long ?: 0L,
-            assetName = obj["asset_name"]?.jsonPrimitive?.content ?: "",
-            apiAssetURL = obj["download_url"]?.jsonPrimitive?.content
-                ?: obj["browser_download_url"]?.jsonPrimitive?.content ?: "",
-            browserDownloadURL = obj["browser_download_url"]?.jsonPrimitive?.content ?: "",
-            releaseNotes = obj["release_notes"]?.jsonPrimitive?.content ?: "",
-            publishedAt = obj["published_at"]?.jsonPrimitive?.content ?: "",
-            htmlURL = obj["html_url"]?.jsonPrimitive?.content ?: "",
-        )
-    }
-
     private fun parseReleaseJson(text: String): ReleaseInfo {
         val obj = Json.parseToJsonElement(text).jsonObject
         val tag = obj["tag_name"]?.jsonPrimitive?.content ?: ""
         val version = tag.trimStart('v')
-        val assets = obj["assets"]?.let { a ->
-            runCatching { a.jsonObject }.getOrNull()
-        }
         var assetName = ""
-        var apiAssetURL = ""
+        var downloadURL = ""
         var assetId = 0L
         val arr = obj["assets"]
-        if (arr is kotlinx.serialization.json.JsonArray && arr.isNotEmpty()) {
-            val first = arr[0].jsonObject
-            assetName = first["name"]?.jsonPrimitive?.content ?: ""
-            apiAssetURL = first["browser_download_url"]?.jsonPrimitive?.content ?: ""
-            assetId = first["id"]?.jsonPrimitive?.long ?: 0L
+        if (arr != null) {
+            try {
+                val a = arr.jsonArray
+                if (a.isNotEmpty()) {
+                    val first = a[0].jsonObject
+                    assetName = first["name"]?.jsonPrimitive?.content ?: ""
+                    downloadURL = first["browser_download_url"]?.jsonPrimitive?.content ?: ""
+                    assetId = first["id"]?.jsonPrimitive?.long ?: 0L
+                }
+            } catch (_: Exception) {}
         }
         return ReleaseInfo(
             version = version,
             tagName = tag,
             assetId = assetId,
             assetName = assetName,
-            apiAssetURL = apiAssetURL,
-            browserDownloadURL = apiAssetURL,
+            apiAssetURL = downloadURL,
+            browserDownloadURL = downloadURL,
             releaseNotes = obj["body"]?.jsonPrimitive?.content ?: "",
             publishedAt = obj["published_at"]?.jsonPrimitive?.content ?: "",
             htmlURL = obj["html_url"]?.jsonPrimitive?.content ?: "",

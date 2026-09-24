@@ -21,5 +21,12 @@ apk/
 *.aab
 *.zip
 
+# Signing (NEVER commit)
+.signing/
+*.jks
+*.keystore
+*.p12
+keystore.properties
+
 # Logs
 *.log

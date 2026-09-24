@@ -30,48 +30,66 @@ object UpdateDownloader {
         try { targetApkPath().delete() } catch (_: Exception) {}
     }
 
-    suspend fun startDownload(url: String, version: String): Result<File> = withContext(Dispatchers.IO) {
-        if (_isDownloading.value) return@withContext Result.failure(Exception("已有下载任务"))
-        _isDownloading.value = true
-        _progress.value = 0.0
-        _currentVersion.value = version
-        deleteExistingApk()
-        try {
-            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 30000
-                readTimeout = 60000
-                requestMethod = "GET"
-                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13)")
-                setRequestProperty("Accept", "application/octet-stream")
-            }
-            val code = conn.responseCode
-            if (code !in 200..299) throw Exception("HTTP " + code)
-            val total = conn.contentLengthLong
-            val tmp = File(updatesDir, "ShortDramaCount.apk.part")
-            conn.inputStream.use { input ->
-                tmp.outputStream().use { out ->
-                    val buf = ByteArray(64 * 1024)
-                    var written = 0L
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n <= 0) break
-                        out.write(buf, 0, n)
-                        written += n
-                        if (total > 0) _progress.value = written.toDouble() / total
-                    }
+    suspend fun startDownload(url: String, version: String, proxy: String = ""): Result<File> =
+        withContext(Dispatchers.IO) {
+            if (_isDownloading.value) return@withContext Result.failure(Exception("已有下载任务"))
+            _isDownloading.value = true
+            _progress.value = 0.0
+            _currentVersion.value = version
+            deleteExistingApk()
+
+            // 依次尝试：代理URL → 直连
+            val candidates = mutableListOf<String>()
+            val np = UpdateChecker.normalizeProxy(proxy)
+            if (np.isNotEmpty()) candidates.add(np + url)
+            if (!candidates.contains(url)) candidates.add(url)
+
+            var lastErr: Exception? = null
+            for (u in candidates) {
+                try {
+                    val file = download(u)
+                    _isDownloading.value = false
+                    return@withContext Result.success(file)
+                } catch (e: Exception) {
+                    lastErr = e
+                    _progress.value = 0.0
                 }
             }
-            val dest = targetApkPath()
-            if (dest.exists()) dest.delete()
-            tmp.renameTo(dest)
-            _progress.value = 1.0
             _isDownloading.value = false
-            Result.success(dest)
-        } catch (e: Exception) {
-            _isDownloading.value = false
-            _progress.value = 0.0
-            Result.failure(e)
+            Result.failure(lastErr ?: Exception("下载失败"))
         }
+
+    private fun download(urlStr: String): File {
+        val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 30000
+            readTimeout = 60000
+            requestMethod = "GET"
+            instanceFollowRedirects = true
+            setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13)")
+            setRequestProperty("Accept", "application/octet-stream")
+        }
+        val code = conn.responseCode
+        if (code !in 200..299) throw Exception("HTTP $code")
+        val total = conn.contentLengthLong
+        val tmp = File(updatesDir, "ShortDramaCount.apk.part")
+        conn.inputStream.use { input ->
+            tmp.outputStream().use { out ->
+                val buf = ByteArray(64 * 1024)
+                var written = 0L
+                while (true) {
+                    val n = input.read(buf)
+                    if (n <= 0) break
+                    out.write(buf, 0, n)
+                    written += n
+                    if (total > 0) _progress.value = written.toDouble() / total
+                }
+            }
+        }
+        val dest = targetApkPath()
+        if (dest.exists()) dest.delete()
+        if (!tmp.renameTo(dest)) { tmp.copyTo(dest, overwrite = true); tmp.delete() }
+        _progress.value = 1.0
+        return dest
     }
 
     fun reset() {

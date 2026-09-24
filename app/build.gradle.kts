@@ -13,31 +13,49 @@ android {
         applicationId = "com.shortdrama.count"
         minSdk = 33
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        // versionCode / versionName 可被 CI 覆盖
+        versionCode = (System.getenv("APP_VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("APP_VERSION_NAME") ?: "1.0.0"
+
+        ndk {
+            // 只保留 arm64，显著缩小体积（覆盖 99% 现代设备）
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {
         create("release") {
-            // CI 通过环境变量注入，本地缺省时用 debug 签名兜底
+            val ksB64 = System.getenv("ANDROID_KEYSTORE_BASE64")
             val ksPath = System.getenv("KEYSTORE_PATH")
-            if (ksPath != null) {
+            if (ksB64 != null) {
+                // CI：从 base64 解码出临时 keystore（用 java.util.Base64，构建脚本可用）
+                val f = File(System.getProperty("java.io.tmpdir"), "release.p12")
+                f.writeBytes(java.util.Base64.getDecoder().decode(ksB64))
+                storeFile = f
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                storeType = "pkcs12"
+            } else if (ksPath != null) {
                 storeFile = file(ksPath)
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("KEY_ALIAS") ?: ""
-                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
             }
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (System.getenv("KEYSTORE_PATH") != null) {
+            val hasSigning = System.getenv("ANDROID_KEYSTORE_BASE64") != null ||
+                System.getenv("KEYSTORE_PATH") != null
+            if (hasSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
@@ -81,7 +99,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    // OCR: ML Kit 文字识别
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -54,18 +54,18 @@ fun SheetHost(vm: AppViewModel) {
 
 /**
  * 内容统一底部内边距。
- * ModalBottomSheet 内部导航栏 inset 常常为 0，这里显式读取根窗口的 navigationBars inset，
- * 保证导入/导出等弹窗底部按钮不会被系统导航栏遮挡。
+ * ModalBottomSheet 内 WindowInsets.navigationBars 常常为 0，
+ * 因此直接从根窗口（Activity window）读取真实导航栏高度，确保弹窗底部不被遮挡。
  */
 @Composable
 fun Modifier.sheetContentPadding(): Modifier {
+    val view = androidx.compose.ui.platform.LocalView.current
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val navBottom = androidx.compose.foundation.layout.WindowInsets.navigationBars
-        .getBottom(density)
-    val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime
-        .getBottom(density)
-    val bottomPx = maxOf(navBottom, imeBottom)
-    val bottomDp = with(density) { bottomPx.toDp() }
+    val navBottomPx = androidx.compose.runtime.remember(view) {
+        val insets = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+        insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+    }
+    val bottomDp = with(density) { navBottomPx.toDp() }
     return this.padding(bottom = bottomDp + 24.dp)
 }
 

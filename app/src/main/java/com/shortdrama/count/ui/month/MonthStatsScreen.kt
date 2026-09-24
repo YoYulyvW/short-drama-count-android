@@ -2,6 +2,8 @@ package com.shortdrama.count.ui.month
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -148,8 +150,9 @@ private fun DayDetailDialog(data: com.shortdrama.count.model.DayData, onDismiss:
             if (valid.isEmpty()) {
                 Text("当天没有明细", color = c.textSub, fontSize = 13.sp)
             } else {
-                LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(valid, key = { it.id }) { drama ->
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    valid.forEach { drama ->
                         val recs = data.records.filter { it.title == drama.title && it.isFast == drama.isFast }
                         Column(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))

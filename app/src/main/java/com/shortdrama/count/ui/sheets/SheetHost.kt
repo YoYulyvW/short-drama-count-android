@@ -1,6 +1,13 @@
 package com.shortdrama.count.ui.sheets
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -30,65 +38,82 @@ import com.shortdrama.count.service.ExportImageService
 import com.shortdrama.count.viewmodel.AppViewModel
 import com.shortdrama.count.viewmodel.ToastStyle
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SheetHost(vm: AppViewModel) {
-    val sheet by vm.activeSheet.collectAsState()
-    if (sheet == null) return
-    ModalBottomSheet(
-        onDismissRequest = { vm.setActiveSheet(null) },
-        containerColor = AppColorsHolder.bg,
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-    ) {
-        when (sheet) {
-            ActiveSheet.IMPORT_DATA -> ImportSheet(vm)
-            ActiveSheet.EXPORT_TEXT -> ExportTextSheet(vm)
-            ActiveSheet.EXPORT_CODE -> ExportCodeSheet(vm)
-            ActiveSheet.EXPORT_IMAGE -> ExportImageSheet(vm)
-            ActiveSheet.UNDO -> UndoSheet(vm)
-            ActiveSheet.QUICK_TOOLS -> QuickToolsSheet(vm)
-            else -> {}
-        }
-    }
-}
-
 /**
- * 读取系统导航栏真实高度（px）。
- * ModalBottomSheet 内的 WindowInsets 常常为 0，这里从 Activity decorView 直接读取，
- * 并监听变化，保证任何状态下都能拿到真实高度。
+ * 自绘底部弹窗。
+ * 作为 Scaffold 内容区内的 Overlay，天然被底栏约束，不会再溢出到系统导航栏之外。
  */
 @Composable
-fun rememberNavigationBarHeightPx(): Int {
-    val view = androidx.compose.ui.platform.LocalView.current
-    var bottomPx by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableIntStateOf(
-            androidx.core.view.ViewCompat.getRootWindowInsets(view)
-                ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+fun BoxScope.SheetHost(vm: AppViewModel) {
+    val sheet by vm.activeSheet.collectAsState()
+    val visible = sheet != null
+
+    // 记录最后一次非空 sheet，保证退场动画期间内容仍在
+    var renderSheet by remember { mutableStateOf<ActiveSheet?>(null) }
+    LaunchedEffect(sheet) { if (sheet != null) renderSheet = sheet }
+
+    val current = renderSheet ?: return
+
+    // 遮罩
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.matchParentSize(),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.42f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { vm.setActiveSheet(null) }
         )
     }
-    androidx.compose.runtime.DisposableEffect(view) {
-        val root = view.rootView
-        val listener = android.view.View.OnApplyWindowInsetsListener { _, insets ->
-            bottomPx = insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
-            insets
-        }
-        root.setOnApplyWindowInsetsListener(listener)
-        root.requestApplyInsets()
-        onDispose {
-            root.setOnApplyWindowInsetsListener(null)
+
+    // 弹窗主体（底部对齐，受内容区高度约束）
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(initialOffsetY = { it }),
+        exit = slideOutVertically(targetOffsetY = { it }),
+        modifier = Modifier.align(Alignment.BottomCenter),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f),
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            color = AppColorsHolder.bg,
+            tonalElevation = 8.dp,
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                // 顶部拖拽条
+                Box(
+                    Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.size(width = 40.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(AppColorsHolder.textSub.copy(alpha = 0.3f))
+                    )
+                }
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    when (current) {
+                        ActiveSheet.IMPORT_DATA -> ImportSheet(vm)
+                        ActiveSheet.EXPORT_TEXT -> ExportTextSheet(vm)
+                        ActiveSheet.EXPORT_CODE -> ExportCodeSheet(vm)
+                        ActiveSheet.EXPORT_IMAGE -> ExportImageSheet(vm)
+                        ActiveSheet.UNDO -> UndoSheet(vm)
+                        ActiveSheet.QUICK_TOOLS -> QuickToolsSheet(vm)
+                        else -> {}
+                    }
+                }
+            }
         }
     }
-    return bottomPx
 }
 
-/** 内容统一底部内边距 + 高度限制，确保底部按钮可见 */
-@Composable
-fun Modifier.sheetContentPadding(): Modifier {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val bottomPx = rememberNavigationBarHeightPx()
-    val bottomDp = with(density) { bottomPx.toDp() }
-    return this.padding(bottom = bottomDp + 24.dp)
-}
+/** 内容底部留白（内容区已被底栏约束，这里只需呼吸空间） */
+fun Modifier.sheetContentPadding(): Modifier = this.padding(bottom = 20.dp)
 
 @Composable
 private fun ImportSheet(vm: AppViewModel) {
@@ -100,10 +125,11 @@ private fun ImportSheet(vm: AppViewModel) {
     val date = vm.currentDateString
 
     Column(
-        Modifier.fillMaxWidth()
-            .heightIn(max = 620.dp)
+        Modifier.fillMaxSize()
+            .imePadding()
             .verticalScroll(rememberScrollState())
-            .sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+            .sheetContentPadding()
+            .padding(horizontal = 20.dp),
     ) {
         Text("导入数据", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -148,9 +174,7 @@ private fun ExportTextSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val text = vm.exportText(date)
     Column(
-        Modifier.fillMaxWidth().heightIn(max = 620.dp)
-            .verticalScroll(rememberScrollState())
-            .sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().sheetContentPadding().padding(horizontal = 20.dp),
     ) {
         Text("明文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
@@ -158,7 +182,7 @@ private fun ExportTextSheet(vm: AppViewModel) {
             Text("当前日期没有数据", color = c.textSub, fontSize = 13.sp)
         } else {
             Box(
-                Modifier.fillMaxWidth().heightIn(max = 300.dp).clip(RoundedCornerShape(12.dp))
+                Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp))
                     .background(c.card).padding(12.dp).verticalScroll(rememberScrollState())
             ) {
                 Text(text, color = c.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
@@ -183,9 +207,7 @@ private fun ExportCodeSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val code = remember(date) { vm.exportShareCode(date) }
     Column(
-        Modifier.fillMaxWidth().heightIn(max = 620.dp)
-            .verticalScroll(rememberScrollState())
-            .sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().sheetContentPadding().padding(horizontal = 20.dp),
     ) {
         Text("密文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -195,7 +217,7 @@ private fun ExportCodeSheet(vm: AppViewModel) {
             Text("当前日期没有数据", color = c.textSub, fontSize = 13.sp)
         } else {
             Box(
-                Modifier.fillMaxWidth().heightIn(max = 200.dp).clip(RoundedCornerShape(12.dp))
+                Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(12.dp))
                     .background(c.card).padding(12.dp).verticalScroll(rememberScrollState())
             ) {
                 Text(code, color = c.text, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
@@ -222,7 +244,7 @@ private fun ExportImageSheet(vm: AppViewModel) {
     val day = days[date]
 
     Column(
-        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().sheetContentPadding().padding(horizontal = 20.dp),
     ) {
         Text("导出图片", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
@@ -243,11 +265,10 @@ private fun ExportImageSheet(vm: AppViewModel) {
                     val shared = ImageShare.shareUri(context, uri)
                     if (shared) {
                         vm.showToast("✅ 已保存到相册并分享", ToastStyle.SUCCESS)
-                        Haptics.success()
                     } else {
                         vm.showToast("✅ 已保存到相册", ToastStyle.SUCCESS)
-                        Haptics.success()
                     }
+                    Haptics.success()
                     vm.setActiveSheet(null)
                 } catch (e: Exception) {
                     vm.showToast("生成失败：" + (e.message ?: "未知错误"), ToastStyle.ERROR)
@@ -265,7 +286,7 @@ private fun UndoSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val snapshots = remember(date) { vm.undosFor(date) }
     Column(
-        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().sheetContentPadding().padding(horizontal = 20.dp),
     ) {
         Text("回档", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -274,7 +295,7 @@ private fun UndoSheet(vm: AppViewModel) {
         if (snapshots.isEmpty()) {
             Text("暂无快照", color = c.textSub, fontSize = 13.sp)
         } else {
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(snapshots, key = { it.id }) { snap ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.card).padding(12.dp),
@@ -299,7 +320,7 @@ private fun UndoSheet(vm: AppViewModel) {
 private fun QuickToolsSheet(vm: AppViewModel) {
     val c = AppColorsHolder
     Column(
-        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().sheetContentPadding().padding(horizontal = 20.dp),
     ) {
         Text("快捷工具", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))

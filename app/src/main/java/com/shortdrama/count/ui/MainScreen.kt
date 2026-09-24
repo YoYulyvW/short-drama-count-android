@@ -74,9 +74,10 @@ fun MainScreen(vm: AppViewModel) {
                 2 -> MonthStatsScreen(vm)
                 else -> SettingsScreen(vm)
             }
+            // 弹窗渲染在内容区内，天然被底栏约束
+            SheetHost(vm)
         }
     }
-    SheetHost(vm)
     PushDevicePickerHost(vm)
     UpdateDialogHost(vm)
     ToastHost(vm)

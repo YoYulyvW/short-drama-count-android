@@ -38,8 +38,6 @@ fun SheetHost(vm: AppViewModel) {
     ModalBottomSheet(
         onDismissRequest = { vm.setActiveSheet(null) },
         containerColor = AppColorsHolder.bg,
-        // 关闭 sheet 默认 inset 处理，避免与内容 padding 冲突
-        windowInsets = WindowInsets(0, 0, 0, 0),
     ) {
         when (sheet) {
             ActiveSheet.IMPORT_DATA -> ImportSheet(vm)
@@ -53,13 +51,9 @@ fun SheetHost(vm: AppViewModel) {
     }
 }
 
-/** 内容统一底部间距：导航栏 / 输入法取较大值 + 24dp */
-@Composable
-private fun sheetBottomPadding(): androidx.compose.ui.unit.Dp {
-    val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val ime = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-    return maxOf(nav, ime) + 24.dp
-}
+/** 内容统一底部内边距：导航栏 + 输入法 + 24dp 呼吸空间 */
+fun Modifier.sheetContentPadding(): Modifier =
+    this.navigationBarsPadding().imePadding().padding(bottom = 24.dp)
 
 @Composable
 private fun ImportSheet(vm: AppViewModel) {
@@ -72,10 +66,8 @@ private fun ImportSheet(vm: AppViewModel) {
 
     Column(
         Modifier.fillMaxWidth()
-            .imePadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 8.dp)
-            .padding(bottom = sheetBottomPadding()),
+            .sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("导入数据", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -120,8 +112,7 @@ private fun ExportTextSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val text = vm.exportText(date)
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
-            .padding(bottom = sheetBottomPadding()),
+        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("明文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
@@ -154,8 +145,7 @@ private fun ExportCodeSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val code = remember(date) { vm.exportShareCode(date) }
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
-            .padding(bottom = sheetBottomPadding()),
+        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("密文导出", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -192,8 +182,7 @@ private fun ExportImageSheet(vm: AppViewModel) {
     val day = days[date]
 
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
-            .padding(bottom = sheetBottomPadding()),
+        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("导出图片", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
@@ -236,8 +225,7 @@ private fun UndoSheet(vm: AppViewModel) {
     val date = vm.currentDateString
     val snapshots = remember(date) { vm.undosFor(date) }
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
-            .padding(bottom = sheetBottomPadding()),
+        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("回档", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
@@ -271,8 +259,7 @@ private fun UndoSheet(vm: AppViewModel) {
 private fun QuickToolsSheet(vm: AppViewModel) {
     val c = AppColorsHolder
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
-            .padding(bottom = sheetBottomPadding()),
+        Modifier.fillMaxWidth().sheetContentPadding().padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Text("快捷工具", color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))

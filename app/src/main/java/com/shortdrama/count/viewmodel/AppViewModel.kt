@@ -686,7 +686,7 @@ class AppViewModel : ViewModel() {
         val daysJson = kotlinx.serialization.json.Json { encodeDefaults = true }
             .encodeToString(
                 kotlinx.serialization.builtins.MapSerializer(
-                    kotlinx.serialization.builtins.serializer<String>(),
+                    String.serializer(),
                     DayData.serializer()), _days.value)
         val undosJson = kotlinx.serialization.json.Json { encodeDefaults = true }
             .encodeToString(
@@ -709,7 +709,7 @@ class AppViewModel : ViewModel() {
             root["days"]?.let {
                 _days.value = j.decodeFromJsonElement(
                     kotlinx.serialization.builtins.MapSerializer(
-                        kotlinx.serialization.builtins.serializer<String>(),
+                        String.serializer(),
                         DayData.serializer()), it)
             }
             root["undos"]?.let {

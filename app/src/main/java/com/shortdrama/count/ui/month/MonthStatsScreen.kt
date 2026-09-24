@@ -32,6 +32,7 @@ import com.shortdrama.count.ui.components.StatPill
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
 import com.shortdrama.count.util.AppConstants
+import com.shortdrama.count.util.Haptics
 import com.shortdrama.count.viewmodel.AppViewModel
 import java.util.Calendar
 import java.util.Date

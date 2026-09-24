@@ -1,6 +1,7 @@
 package com.shortdrama.count.ui.month
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,6 +36,7 @@ import java.util.Date
 fun MonthStatsScreen(vm: AppViewModel) {
     var month by remember { mutableStateOf(Date()) }
     val days by vm.days.collectAsState()
+    var dayDetail by remember { mutableStateOf<com.shortdrama.count.model.DayData?>(null) }
     val c = AppColorsHolder
 
     val cal = Calendar.getInstance()
@@ -116,11 +118,66 @@ fun MonthStatsScreen(vm: AppViewModel) {
             }
         }
         item {
-            SectionCard(title = "每日热力") {
-                HeatmapGrid(month, countsByDay)
+            SectionCard(title = "看剧日历") {
+                HeatmapGrid(month, countsByDay) { ds ->
+                    days[ds]?.let { dayDetail = it }
+                }
             }
         }
     }
+
+    // 日期详情弹窗
+    dayDetail?.let { data ->
+        DayDetailDialog(data = data, onDismiss = { dayDetail = null })
+    }
+}
+
+@Composable
+private fun DayDetailDialog(data: com.shortdrama.count.model.DayData, onDismiss: () -> Unit) {
+    val c = AppColorsHolder
+    val valid = data.dramas.reversed().filter { drama ->
+        data.records.any { it.title == drama.title && it.isFast == drama.isFast }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } },
+        title = { Text(data.date) },
+        text = {
+            if (valid.isEmpty()) {
+                Text("当天没有明细", color = c.textSub, fontSize = 13.sp)
+            } else {
+                LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(valid, key = { it.id }) { drama ->
+                        val recs = data.records.filter { it.title == drama.title && it.isFast == drama.isFast }
+                        Column(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                .background(c.card).padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(drama.title, color = c.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                if (drama.isFast) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("极速", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Palette.blue)
+                                            .padding(horizontal = 6.dp, vertical = 1.dp))
+                                }
+                                Spacer(Modifier.weight(1f))
+                                Text(recs.sumOf { it.count }.toString(), color = Palette.indigo,
+                                    fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            recs.forEach { r ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+                                    Text(r.platform, color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                    Text(r.count.toString(), color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    )
 }
 
 private fun shiftMonth(date: Date, delta: Int): Date {
@@ -129,7 +186,7 @@ private fun shiftMonth(date: Date, delta: Int): Date {
 }
 
 @Composable
-private fun HeatmapGrid(month: Date, counts: Map<String, Int>) {
+private fun HeatmapGrid(month: Date, counts: Map<String, Int>, onSelect: (String) -> Unit) {
     val c = AppColorsHolder
     val weekNames = listOf("日", "一", "二", "三", "四", "五", "六")
     val cal = Calendar.getInstance().apply { time = month; set(Calendar.DAY_OF_MONTH, 1) }
@@ -165,7 +222,11 @@ private fun HeatmapGrid(month: Date, counts: Map<String, Int>) {
                         Box(
                             Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(8.dp))
                                 .background(heatBg(cnt, c.isDark, c.cardElev))
-                                .then(if (isToday) Modifier else Modifier),
+                                .then(
+                                    if (cnt > 0) Modifier.clickable {
+                                        onSelect(ds); Haptics.tap()
+                                    } else Modifier
+                                ),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(Calendar.getInstance().apply { time = date }.get(Calendar.DAY_OF_MONTH).toString(),

@@ -171,6 +171,68 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
+            val relayState by vm.relayState.collectAsState()
+            val relayErr by vm.relayLastError.collectAsState()
+            val relayStatusText = when (relayState) {
+                com.shortdrama.count.service.RelayClient.State.CONNECTED -> "已连接"
+                com.shortdrama.count.service.RelayClient.State.CONNECTING -> "连接中…"
+                com.shortdrama.count.service.RelayClient.State.ERROR -> "异常"
+                else -> "未启用"
+            }
+            val relayStatusColor = when (relayState) {
+                com.shortdrama.count.service.RelayClient.State.CONNECTED -> Palette.green
+                com.shortdrama.count.service.RelayClient.State.CONNECTING -> Palette.orange
+                com.shortdrama.count.service.RelayClient.State.ERROR -> Palette.red
+                else -> c.textSub
+            }
+            CollapsibleCard(title = "中继服务器", subtitle = relayStatusText) {
+                Column {
+                    SwitchRow("启用中继服务器", settings.relayEnabled) {
+                        vm.updateSettings(settings.copy(relayEnabled = it)); vm.saveSettings()
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = settings.relayUrl,
+                        onValueChange = { vm.updateSettings(settings.copy(relayUrl = it)) },
+                        label = { Text("服务器地址（https://...）") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(relayStatusColor))
+                        Spacer(Modifier.width(8.dp))
+                        Text("状态", color = c.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Text(relayStatusText, color = relayStatusColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (relayErr != null && relayState == com.shortdrama.count.service.RelayClient.State.ERROR) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(relayErr ?: "", color = Palette.red, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("启用后可通过公网中继接收其他设备的推送，摆脱局域网限制。",
+                        color = c.textSub, fontSize = 11.sp)
+                }
+            }
+        }
+
+        item {
+            CollapsibleCard(title = "通知", subtitle = "收到推送时提醒") {
+                Column {
+                    SwitchRow("收到推送时弹通知", settings.notifyOnPush) {
+                        vm.updateSettings(settings.copy(notifyOnPush = it)); vm.saveSettings()
+                    }
+                    SwitchRow("点击后先询问再打开", settings.askBeforeOpenPush) {
+                        vm.updateSettings(settings.copy(askBeforeOpenPush = it)); vm.saveSettings()
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text("关闭「点击后询问」时，收到推送会直接打开导入面板。",
+                        color = c.textSub, fontSize = 11.sp)
+                }
+            }
+        }
+
+        item {
             CollapsibleCard(title = "远程同步", subtitle = if (settings.remoteEnabled) "已启用" else "未启用") {
                 Column {
                     SwitchRow("启用远程同步", settings.remoteEnabled) {

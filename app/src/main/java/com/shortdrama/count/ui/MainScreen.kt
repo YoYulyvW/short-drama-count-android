@@ -80,5 +80,6 @@ fun MainScreen(vm: AppViewModel) {
     }
     PushDevicePickerHost(vm)
     UpdateDialogHost(vm)
+    PushConfirmDialogHost(vm)
     ToastHost(vm)
 }

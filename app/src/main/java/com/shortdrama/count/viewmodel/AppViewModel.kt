@@ -99,6 +99,16 @@ class AppViewModel : ViewModel() {
     private val _pendingRemoteTitles = MutableStateFlow<List<String>>(emptyList())
     val pendingRemoteTitles = _pendingRemoteTitles.asStateFlow()
 
+    // 收到推送后等待用户确认是否打开
+    private val _pendingPushConfirm = MutableStateFlow<PushPayload?>(null)
+    val pendingPushConfirm: StateFlow<PushPayload?> = _pendingPushConfirm.asStateFlow()
+
+    // 中继状态
+    val relayState: StateFlow<com.shortdrama.count.service.RelayClient.State> =
+        com.shortdrama.count.service.RelayClient.state
+    val relayLastError: StateFlow<String?> =
+        com.shortdrama.count.service.RelayClient.lastError
+
     val currentDateString: String get() = AppConstants.dateString(_currentDate.value)
 
     // 局域网服务状态（供设置页展示）
@@ -114,7 +124,25 @@ class AppViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            LanServer.pushEvents.collect { payload -> handleIncomingPush(payload) }
+            LanServer.pushEvents.collect { payload ->
+                // 局域网推送：前台弹询问框；后台交给前台服务弹系统通知
+                if (com.shortdrama.count.AppLifecycle.foreground) {
+                    handleIncomingPush(payload)
+                }
+            }
+        }
+        viewModelScope.launch {
+            com.shortdrama.count.service.PushNotificationBus.events.collect { payload ->
+                handleIncomingPush(payload)
+            }
+        }
+        viewModelScope.launch {
+            com.shortdrama.count.service.PushIntentBus.pending.collect { payload ->
+                if (payload != null) {
+                    _pendingPushConfirm.value = payload
+                    com.shortdrama.count.service.PushIntentBus.consume()
+                }
+            }
         }
         viewModelScope.launch {
             UpdateDownloader.progress.collect { _downloadProgress.value = it }
@@ -151,7 +179,17 @@ class AppViewModel : ViewModel() {
     }
 
     private fun applyLanSetting() {
-        if (_settings.value.lanEnabled) {
+        val s = _settings.value
+        // 持久化到 SharedPreferences（供前台服务读取）
+        val sp = com.shortdrama.count.App.instance
+            .getSharedPreferences("drama_prefs", android.content.Context.MODE_PRIVATE)
+        sp.edit()
+            .putBoolean("lan_enabled", s.lanEnabled)
+            .putBoolean("relay_enabled", s.relayEnabled)
+            .putString("relay_url", s.relayUrl)
+            .apply()
+
+        if (s.lanEnabled) {
             LanServer.start()
             viewModelScope.launch {
                 delay(300)
@@ -160,6 +198,15 @@ class AppViewModel : ViewModel() {
         } else {
             LanServer.stop()
             _lanIp.value = null
+        }
+
+        // 中继：由前台服务统一管理
+        if (s.lanEnabled || s.relayEnabled) {
+            com.shortdrama.count.service.PushForegroundService.start(
+                com.shortdrama.count.App.instance)
+        } else {
+            com.shortdrama.count.service.PushForegroundService.stop(
+                com.shortdrama.count.App.instance)
         }
     }
 
@@ -474,13 +521,19 @@ class AppViewModel : ViewModel() {
         _scanningDevices.value = true
         _pushDevices.value = emptyList()
         viewModelScope.launch {
-            val devices = DeviceDiscovery.scan(
+            val lan = DeviceDiscovery.scan(
                 if (LanServer.port > 0) LanServer.port else LanServer.DEFAULT_PORT,
                 timeoutMs = 800,
             )
-            _pushDevices.value = devices
+            val relay = if (_settings.value.relayEnabled &&
+                com.shortdrama.count.service.RelayClient.currentToken().isNotEmpty()) {
+                com.shortdrama.count.service.RelayClient.fetchDevices(DeviceDiscovery.selfDeviceId())
+            } else emptyList()
+
+            val all = lan + relay
+            _pushDevices.value = all
             _scanningDevices.value = false
-            if (devices.isEmpty()) showToast("未发现局域网内的其他设备", ToastStyle.ERROR)
+            if (all.isEmpty()) showToast("未发现在线设备", ToastStyle.ERROR)
             else _showDevicePicker.value = true
         }
     }
@@ -498,7 +551,14 @@ class AppViewModel : ViewModel() {
         )
         viewModelScope.launch {
             var ok = 0
-            for (dev in devices) if (DeviceDiscovery.push(payload, dev)) ok++
+            for (dev in devices) {
+                val sent = if (dev.source == "relay") {
+                    com.shortdrama.count.service.RelayClient.send(dev.deviceId, payload)
+                } else {
+                    DeviceDiscovery.push(payload, dev)
+                }
+                if (sent) ok++
+            }
             if (ok == devices.size) {
                 showToast(if (devices.size == 1) "✅ 已发送到 ${devices[0].name}" else "✅ 已发送到 $ok 台设备", ToastStyle.SUCCESS)
             } else showToast("⚠️ 部分发送失败 ($ok/${devices.size})", ToastStyle.ERROR)
@@ -506,12 +566,25 @@ class AppViewModel : ViewModel() {
     }
 
     private fun handleIncomingPush(payload: PushPayload) {
+        // 已在前台：弹询问；由 UI 决定是否打开
+        if (_settings.value.askBeforeOpenPush) {
+            _pendingPushConfirm.value = payload
+            showToast("收到来自「${payload.sender}」的数据", ToastStyle.INFO)
+        } else {
+            openPushPayload(payload)
+        }
+    }
+
+    /** 用户确认后：转明文并打开 ImportSheet */
+    fun openPushPayload(payload: PushPayload) {
         val text = payloadToExportText(payload)
         _pendingImportText.value = text
         _pendingImportDate.value = payload.date
         _activeSheet.value = ActiveSheet.IMPORT_DATA
-        showToast("收到来自「${payload.sender}」的数据", ToastStyle.SUCCESS)
+        _pendingPushConfirm.value = null
     }
+
+    fun dismissPushConfirm() { _pendingPushConfirm.value = null }
 
     private fun payloadToExportText(payload: PushPayload): String {
         val lines = mutableListOf("统计 ${payload.date}", "")
@@ -740,7 +813,7 @@ class AppViewModel : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        LanServer.stop()
+        // 注意：LanServer / RelayClient 由前台服务托管，VM 销毁不停它们
     }
 }
 

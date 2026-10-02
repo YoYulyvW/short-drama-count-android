@@ -83,6 +83,7 @@ data class PushDevice(
     val name: String,
     val deviceId: String,
     val port: Int,
+    val source: String = "lan",   // lan | relay
 )
 
 @Serializable
@@ -149,4 +150,12 @@ data class AppSettings(
     val remotePassword: String = "",
     val remoteToken: String = "",
     val autoSync: Boolean = false,
+    // ===== 中继服务器 =====
+    val relayEnabled: Boolean = false,
+    val relayUrl: String = "",
+    val relayToken: String = "",
+    val relayRegisteredDeviceId: String = "",
+    // ===== 通知 =====
+    val notifyOnPush: Boolean = true,
+    val askBeforeOpenPush: Boolean = true,
 )

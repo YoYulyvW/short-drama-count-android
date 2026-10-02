@@ -43,13 +43,61 @@ fun PushDevicePickerHost(vm: AppViewModel) {
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(dev.name, color = AppColorsHolder.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            Text(dev.ip + ":" + dev.port, color = AppColorsHolder.textSub, fontSize = 12.sp)
+                            Text(
+                                if (dev.source == "relay") "中继" else dev.ip + ":" + dev.port,
+                                color = if (dev.source == "relay") Palette.green else AppColorsHolder.textSub,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
             }
         },
     )
+}
+
+
+@Composable
+fun PushConfirmDialogHost(vm: AppViewModel) {
+    val pending by vm.pendingPushConfirm.collectAsState()
+    val payload = pending ?: return
+    val preview = remember(payload) { buildPushPreview(payload) }
+    AlertDialog(
+        onDismissRequest = { vm.dismissPushConfirm() },
+        confirmButton = {
+            TextButton(onClick = { vm.openPushPayload(payload) }) { Text("查看") }
+        },
+        dismissButton = {
+            TextButton(onClick = { vm.dismissPushConfirm() }) { Text("忽略") }
+        },
+        title = { Text("打开收到的数据？") },
+        text = {
+            Column {
+                Text("来自 " + payload.sender + " · " + payload.date,
+                    color = AppColorsHolder.textSub, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                Text(preview, color = AppColorsHolder.text, fontSize = 12.sp)
+            }
+        },
+    )
+}
+
+private fun buildPushPreview(p: com.shortdrama.count.model.PushPayload): String {
+    val sb = StringBuilder()
+    for (d in p.dramas) {
+        val recs = p.records.filter { it.title == d.title && it.isFast == d.isFast }
+        if (recs.isEmpty()) continue
+        sb.append("【")
+        sb.append(if (d.isFast) d.title + AppConstants.fastSuffix else d.title)
+        sb.append("】")
+        sb.append(recs.joinToString(" | ") { it.platform.take(1) + ":" + it.count })
+        sb.append("\n")
+    }
+    val sums = mutableMapOf<String, Int>()
+    p.records.forEach { sums[it.platform] = (sums[it.platform] ?: 0) + it.count }
+    sb.append("共 ").append(p.dramas.size).append(" 部剧 · ")
+    sb.append(sums.values.sum()).append(" 条广告")
+    return sb.toString()
 }
 
 @Composable

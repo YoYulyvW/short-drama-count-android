@@ -603,6 +603,10 @@ class AppViewModel : ViewModel() {
     }
 
     private fun handleIncomingPush(payload: PushPayload, fromRelay: Boolean = false) {
+        // 前台提示音（受「收到推送时弹通知」开关控制）
+        if (_settings.value.notifyOnPush) {
+            com.shortdrama.count.util.SoundAlert.playNotification()
+        }
         // 只有中继来源 + 开启「询问」才弹确认；局域网直接打开
         val needAsk = fromRelay && _settings.value.askBeforeOpenPush
         if (needAsk) {

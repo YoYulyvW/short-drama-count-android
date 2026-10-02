@@ -34,11 +34,10 @@ class PushForegroundService : Service() {
         RelayClient.onMessage = { payload ->
             val preview = payloadToPreview(payload)
             if (com.shortdrama.count.AppLifecycle.foreground) {
-                // 前台：交给 App 内弹询问框
                 PushNotificationBus.post(payload)
             } else {
-                // 后台：弹系统通知，点击后进 App 再询问
-                NotificationHelper.showPushNotification(this, payload, preview)
+                // 后台：弹系统通知，标记来自中继
+                NotificationHelper.showPushNotification(this, payload, preview, fromRelay = true)
             }
         }
 
@@ -51,7 +50,8 @@ class PushForegroundService : Service() {
                     if (!com.shortdrama.count.AppLifecycle.foreground) {
                         NotificationHelper.showPushNotification(
                             this@PushForegroundService, payload,
-                            payloadToPreview(payload)
+                            payloadToPreview(payload),
+                            fromRelay = false
                         )
                     }
                 }

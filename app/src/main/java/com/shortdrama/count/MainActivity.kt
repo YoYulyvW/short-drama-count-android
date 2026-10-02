@@ -64,9 +64,9 @@ class MainActivity : ComponentActivity() {
         if (str.isEmpty()) return
         try {
             val payload = json.decodeFromString(PushPayload.serializer(), str)
-            PushIntentBus.post(payload)
+            val fromRelay = intent.getBooleanExtra(NotificationHelper.EXTRA_PUSH_FROM_RELAY, false)
+            PushIntentBus.post(payload, fromRelay)
         } catch (_: Exception) {}
-        // 清掉，避免重复触发
         intent.removeExtra(NotificationHelper.EXTRA_PUSH_PAYLOAD)
     }
 }

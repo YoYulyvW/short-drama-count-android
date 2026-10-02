@@ -20,6 +20,7 @@ object NotificationHelper {
 
     const val EXTRA_PUSH_PAYLOAD = "extra_push_payload"
     const val EXTRA_PUSH_FROM = "extra_push_from"
+    const val EXTRA_PUSH_FROM_RELAY = "extra_push_from_relay"
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
@@ -53,7 +54,7 @@ object NotificationHelper {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         else PendingIntent.FLAG_UPDATE_CURRENT
 
-    fun showPushNotification(ctx: Context, payload: PushPayload, preview: String) {
+    fun showPushNotification(ctx: Context, payload: PushPayload, preview: String, fromRelay: Boolean = false) {
         ensureChannels(ctx)
         val jsonStr = try {
             json.encodeToString(PushPayload.serializer(), payload)
@@ -63,6 +64,7 @@ object NotificationHelper {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_PUSH_PAYLOAD, jsonStr)
             putExtra(EXTRA_PUSH_FROM, payload.sender)
+            putExtra(EXTRA_PUSH_FROM_RELAY, fromRelay)
         }
         val id = (System.currentTimeMillis() and 0x7fffffff).toInt()
         val pi = PendingIntent.getActivity(ctx, id, intent, piFlags())

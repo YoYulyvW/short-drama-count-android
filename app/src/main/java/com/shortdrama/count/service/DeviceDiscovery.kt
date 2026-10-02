@@ -19,6 +19,16 @@ object DeviceDiscovery {
     private const val deviceIdKey = "kai_fan_le_device_uuid"
 
     fun selfDeviceId(): String {
+        // 优先用系统 ANDROID_ID（真实、稳定）
+        try {
+            val androidId = android.provider.Settings.Secure.getString(
+                App.instance.contentResolver,
+                android.provider.Settings.Secure.ANDROID_ID
+            )
+            if (!androidId.isNullOrEmpty() && androidId != "9774d56d682e549c") {
+                return "android-" + androidId
+            }
+        } catch (_: Exception) {}
         val sp = App.instance.getSharedPreferences("drama_prefs", Context.MODE_PRIVATE)
         val existing = sp.getString(deviceIdKey, null)
         if (!existing.isNullOrEmpty()) return existing

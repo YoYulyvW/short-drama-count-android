@@ -13,8 +13,12 @@ object PushNotificationBus {
 }
 
 /** 通知点击后携带的待处理 payload（Activity 启动时解析） */
+data class PendingPush(val payload: PushPayload, val fromRelay: Boolean)
+
 object PushIntentBus {
-    val pending = MutableStateFlow<PushPayload?>(null)
-    fun post(p: PushPayload) { pending.value = p }
-    fun consume(): PushPayload? { val v = pending.value; pending.value = null; return v }
+    val pending = MutableStateFlow<PendingPush?>(null)
+    fun post(p: PushPayload, fromRelay: Boolean = false) {
+        pending.value = PendingPush(p, fromRelay)
+    }
+    fun consume(): PendingPush? { val v = pending.value; pending.value = null; return v }
 }

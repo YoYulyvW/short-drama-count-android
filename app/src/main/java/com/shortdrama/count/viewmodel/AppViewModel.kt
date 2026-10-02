@@ -125,21 +125,26 @@ class AppViewModel : ViewModel() {
     init {
         viewModelScope.launch {
             LanServer.pushEvents.collect { payload ->
-                // 局域网推送：前台弹询问框；后台交给前台服务弹系统通知
+                // 局域网：前台直接打开（不询问）
                 if (com.shortdrama.count.AppLifecycle.foreground) {
-                    handleIncomingPush(payload)
+                    handleIncomingPush(payload, fromRelay = false)
                 }
             }
         }
         viewModelScope.launch {
             com.shortdrama.count.service.PushNotificationBus.events.collect { payload ->
-                handleIncomingPush(payload)
+                // 中继：前台弹询问框
+                handleIncomingPush(payload, fromRelay = true)
             }
         }
         viewModelScope.launch {
-            com.shortdrama.count.service.PushIntentBus.pending.collect { payload ->
-                if (payload != null) {
-                    _pendingPushConfirm.value = payload
+            com.shortdrama.count.service.PushIntentBus.pending.collect { pending ->
+                if (pending != null) {
+                    if (pending.fromRelay && _settings.value.askBeforeOpenPush) {
+                        _pendingPushConfirm.value = pending.payload
+                    } else {
+                        openPushPayload(pending.payload)
+                    }
                     com.shortdrama.count.service.PushIntentBus.consume()
                 }
             }
@@ -530,7 +535,12 @@ class AppViewModel : ViewModel() {
                 com.shortdrama.count.service.RelayClient.fetchDevices(DeviceDiscovery.selfDeviceId())
             } else emptyList()
 
-            val all = lan + relay
+            // 去重：优先保留局域网，按 deviceId 或 ip
+            val seen = mutableSetOf<String>()
+            val all = (lan + relay).filter { dev ->
+                val key = if (dev.deviceId.isEmpty()) dev.ip else dev.deviceId
+                if (key in seen) false else { seen.add(key); true }
+            }
             _pushDevices.value = all
             _scanningDevices.value = false
             if (all.isEmpty()) showToast("未发现在线设备", ToastStyle.ERROR)
@@ -565,9 +575,10 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    private fun handleIncomingPush(payload: PushPayload) {
-        // 已在前台：弹询问；由 UI 决定是否打开
-        if (_settings.value.askBeforeOpenPush) {
+    private fun handleIncomingPush(payload: PushPayload, fromRelay: Boolean = false) {
+        // 只有中继来源 + 开启「询问」才弹确认；局域网直接打开
+        val needAsk = fromRelay && _settings.value.askBeforeOpenPush
+        if (needAsk) {
             _pendingPushConfirm.value = payload
             showToast("收到来自「${payload.sender}」的数据", ToastStyle.INFO)
         } else {

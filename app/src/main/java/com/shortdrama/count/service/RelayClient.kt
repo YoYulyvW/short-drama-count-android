@@ -71,6 +71,26 @@ object RelayClient {
     }
 
     fun stop() {
+        // 主动注销：让服务端立即把本机标为离线（服务端未实现该接口时静默忽略）
+        val t = token
+        val base = baseUrl
+        if (t.isNotEmpty() && base.isNotEmpty()) {
+            Thread {
+                try {
+                    val conn = URL(base + "/relay/unregister")
+                        .openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.setRequestProperty("Authorization", "Bearer " + t)
+                    conn.outputStream.use { it.write("{}".toByteArray(Charsets.UTF_8)) }
+                    try { conn.inputStream?.close() } catch (_: Exception) {}
+                    conn.disconnect()
+                } catch (_: Exception) {}
+            }.start()
+        }
         loopJob?.cancel()
         loopJob = null
         scope?.cancel()

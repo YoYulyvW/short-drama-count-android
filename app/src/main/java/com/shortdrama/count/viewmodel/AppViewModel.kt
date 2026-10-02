@@ -213,6 +213,15 @@ class AppViewModel : ViewModel() {
             com.shortdrama.count.service.PushForegroundService.stop(
                 com.shortdrama.count.App.instance)
         }
+
+        // 关闭中继后，把列表中已缓存的中继设备一并移除
+        if (!s.relayEnabled) {
+            val kept = _pushDevices.value.filter { it.source != "relay" }
+            if (kept.size != _pushDevices.value.size) {
+                _pushDevices.value = kept
+                if (kept.isEmpty()) _showDevicePicker.value = false
+            }
+        }
     }
 
     // ---------- 日期 ----------

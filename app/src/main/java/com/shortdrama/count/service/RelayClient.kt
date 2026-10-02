@@ -258,8 +258,8 @@ object RelayClient {
         }
     }
 
-    /** 拉取中继在线设备（不含自己） */
-    suspend fun fetchDevices(selfId: String, selfName: String = ""): List<PushDevice> {
+    /** 拉取中继在线设备（仅按 ID 过滤自己，不能按名称——同型号设备名会冲突） */
+    suspend fun fetchDevices(selfId: String): List<PushDevice> {
         return kotlinx.coroutines.withContext(Dispatchers.IO) {
             if (token.isEmpty() || baseUrl.isEmpty()) return@withContext emptyList()
             val conn = open("/relay/devices", "GET", withAuth = true)
@@ -274,8 +274,6 @@ object RelayClient {
                     val id = o["deviceId"]?.jsonPrimitive?.content ?: continue
                     if (id == selfId) continue
                     val name = o["deviceName"]?.jsonPrimitive?.content ?: "中继设备"
-                    // 名称兜底过滤（ID 历史不一致时防自己出现在列表）
-                    if (selfName.isNotEmpty() && name == selfName) continue
                     val platform = o["platform"]?.jsonPrimitive?.content ?: ""
                     list.add(
                         PushDevice(

@@ -533,8 +533,7 @@ class AppViewModel : ViewModel() {
             val relay = if (_settings.value.relayEnabled &&
                 com.shortdrama.count.service.RelayClient.currentToken().isNotEmpty()) {
                 com.shortdrama.count.service.RelayClient.fetchDevices(
-                    DeviceDiscovery.selfDeviceId(),
-                    DeviceDiscovery.selfDisplayName()
+                    DeviceDiscovery.selfDeviceId()
                 )
             } else emptyList()
 

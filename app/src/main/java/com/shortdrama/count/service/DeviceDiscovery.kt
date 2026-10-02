@@ -19,22 +19,24 @@ object DeviceDiscovery {
     private const val deviceIdKey = "kai_fan_le_device_uuid"
 
     fun selfDeviceId(): String {
-        // 优先用系统 ANDROID_ID（真实、稳定）
-        try {
+        val sp = App.instance.getSharedPreferences("drama_prefs", Context.MODE_PRIVATE)
+        // 1) 已固化过 → 直接返回，保证与历史注册一致
+        val existing = sp.getString(deviceIdKey, null)
+        if (!existing.isNullOrEmpty()) return existing
+        // 2) 首次生成：优先 ANDROID_ID，否则随机 UUID
+        val id: String = try {
             val androidId = android.provider.Settings.Secure.getString(
                 App.instance.contentResolver,
                 android.provider.Settings.Secure.ANDROID_ID
             )
             if (!androidId.isNullOrEmpty() && androidId != "9774d56d682e549c") {
-                return "android-" + androidId
-            }
-        } catch (_: Exception) {}
-        val sp = App.instance.getSharedPreferences("drama_prefs", Context.MODE_PRIVATE)
-        val existing = sp.getString(deviceIdKey, null)
-        if (!existing.isNullOrEmpty()) return existing
-        val uuid = java.util.UUID.randomUUID().toString()
-        sp.edit().putString(deviceIdKey, uuid).apply()
-        return uuid
+                "android-" + androidId
+            } else java.util.UUID.randomUUID().toString()
+        } catch (_: Exception) {
+            java.util.UUID.randomUUID().toString()
+        }
+        sp.edit().putString(deviceIdKey, id).apply()
+        return id
     }
 
     fun selfDisplayName(): String =

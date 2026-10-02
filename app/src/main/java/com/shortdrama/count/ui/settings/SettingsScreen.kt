@@ -49,6 +49,7 @@ fun SettingsScreen(vm: AppViewModel) {
         }
     }
     val c = AppColorsHolder
+    var showDeleteDay by remember { mutableStateOf(false) }
 
     LazyColumn(
         Modifier.fillMaxSize().background(c.bg),
@@ -301,6 +302,20 @@ fun SettingsScreen(vm: AppViewModel) {
         }
 
         item {
+            CollapsibleCard(title = "数据管理", subtitle = "删除数据") {
+                Column {
+                    Text("仅删除某个日期的记录，其他日期不受影响。",
+                        color = c.textSub, fontSize = 11.sp)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { showDeleteDay = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("删除指定日期数据") }
+                }
+            }
+        }
+
+        item {
             CollapsibleCard(title = "数据备份", subtitle = "导出 / 导入") {
                 Column {
                     Text("卸载重装后数据仍在：系统会询问是否保留应用数据（Android 10+）。",
@@ -334,6 +349,104 @@ fun SettingsScreen(vm: AppViewModel) {
             }
         }
         item { Spacer(Modifier.height(80.dp)) }
+    }
+
+    if (showDeleteDay) {
+        DeleteDayDialog(vm) { showDeleteDay = false }
+    }
+}
+
+@Composable
+private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val c = AppColorsHolder
+    val days by vm.days.collectAsState()
+    var pickedDate by remember { mutableStateOf(java.util.Date()) }
+    var showFirst by remember { mutableStateOf(false) }
+    var showFinal by remember { mutableStateOf(false) }
+    var showPicker by remember { mutableStateOf(false) }
+
+    val pickedStr = AppConstants.dateString(pickedDate)
+    val day = days[pickedStr]
+    val dramaCount = day?.dramas?.size ?: 0
+    val recordCount = day?.records?.size ?: 0
+    val hasData = dramaCount > 0 || recordCount > 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                if (!hasData) {
+                    vm.showToast("该日期没有数据", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                    return@TextButton
+                }
+                showFirst = true
+            }) { Text("删除", color = Palette.red) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        title = { Text("删除指定日期数据") },
+        text = {
+            Column {
+                OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(pickedStr)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row {
+                    Text("该日短剧", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(dramaCount.toString() + " 部", color = c.text, fontSize = 13.sp)
+                }
+                Spacer(Modifier.height(4.dp))
+                Row {
+                    Text("该日记录", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(recordCount.toString() + " 条", color = c.text, fontSize = 13.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("仅删除所选日期的数据，其他日期不受影响。删除后无法撤销。",
+                    color = c.textSub, fontSize = 11.sp)
+            }
+        },
+    )
+
+    if (showPicker) {
+        val state = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = pickedDate.time
+        )
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { pickedDate = java.util.Date(it) }
+                    showPicker = false
+                }) { Text("确定") }
+            },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("取消") } },
+        ) { androidx.compose.material3.DatePicker(state = state) }
+    }
+
+    if (showFirst) {
+        AlertDialog(
+            onDismissRequest = { showFirst = false },
+            confirmButton = { TextButton(onClick = { showFirst = false; showFinal = true }) { Text("继续", color = Palette.red) } },
+            dismissButton = { TextButton(onClick = { showFirst = false }) { Text("取消") } },
+            title = { Text("确认删除？") },
+            text = { Text("将删除 " + pickedStr + " 的全部短剧与平台记录。此操作无法恢复。") },
+        )
+    }
+
+    if (showFinal) {
+        AlertDialog(
+            onDismissRequest = { showFinal = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.deleteDay(pickedStr)
+                    vm.showToast("已删除 " + pickedStr + " 的数据", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                    showFinal = false
+                    onDismiss()
+                }) { Text("彻底删除", color = Palette.red) }
+            },
+            dismissButton = { TextButton(onClick = { showFinal = false }) { Text("取消") } },
+            title = { Text("最后确认") },
+            text = { Text("真的要删除 " + pickedStr + " 的数据吗？删除后无法撤销。") },
+        )
     }
 }
 

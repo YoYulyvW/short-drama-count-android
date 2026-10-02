@@ -292,6 +292,22 @@ class AppViewModel : ViewModel() {
         scheduleSaveDays()
     }
 
+    /** 删除指定日期的全部数据（剧集 + 平台记录 + 该日撤销快照） */
+    fun deleteDay(date: String) {
+        val days = _days.value.toMutableMap()
+        if (!days.containsKey(date)) return
+        days.remove(date)
+        _days.value = days
+        scheduleSaveDays()
+        // 清理该日期的撤销快照
+        val kept = _undos.value.filter { it.date != date }
+        if (kept.size != _undos.value.size) {
+            _undos.value = kept
+            saveUndosNow()
+        }
+        Haptics.warning()
+    }
+
     fun deleteDrama(date: String, title: String, isFast: Boolean) {
         val days = _days.value.toMutableMap()
         val orig = days[date] ?: return

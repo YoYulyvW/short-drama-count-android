@@ -28,6 +28,7 @@ import com.shortdrama.count.ui.components.HeroPills
 import com.shortdrama.count.ui.components.KPIRow
 import com.shortdrama.count.ui.components.KpiItem
 import com.shortdrama.count.ui.components.LineChartView
+import com.shortdrama.count.ui.components.PlatformIcon
 import com.shortdrama.count.ui.components.RankBarListImpl
 import com.shortdrama.count.ui.components.RankItem
 import com.shortdrama.count.ui.theme.AppColorsHolder
@@ -303,7 +304,7 @@ private fun DayDetailDialog(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     ) {
-                                        Box(Modifier.size(8.dp).clip(CircleShape).background(com.shortdrama.count.ui.theme.parseHex(cfg.colorHex)))
+                                        PlatformIcon(name = cfg.name, colorHex = cfg.colorHex, size = 16.dp)
                                         Text(cfg.name, color = c.textSub, fontSize = 12.sp)
                                         Text(r.count.toString(), color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                     }

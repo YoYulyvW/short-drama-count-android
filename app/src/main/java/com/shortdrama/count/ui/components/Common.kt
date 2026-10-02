@@ -188,10 +188,7 @@ fun RankBarRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(color),
-            contentAlignment = Alignment.Center,
-        ) { Text(short, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black) }
+        PlatformIcon(name = name, colorHex = colorHex, size = 34.dp)
         Column(Modifier.weight(1f)) {
             Text(name, color = AppColorsHolder.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))

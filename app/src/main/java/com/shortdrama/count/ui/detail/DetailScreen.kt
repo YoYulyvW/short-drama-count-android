@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shortdrama.count.ui.components.HeroCard
 import com.shortdrama.count.ui.components.HeroPills
+import com.shortdrama.count.ui.components.PlatformIcon
 import com.shortdrama.count.ui.components.RankBarListImpl
 import com.shortdrama.count.ui.components.RankItem
 import com.shortdrama.count.ui.theme.AppColorsHolder
@@ -151,7 +152,7 @@ fun DetailScreen(vm: AppViewModel) {
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(5.dp),
                                         ) {
-                                            Box(Modifier.size(8.dp).clip(CircleShape).background(parseHex(cfg.colorHex)))
+                                            PlatformIcon(name = cfg.name, colorHex = cfg.colorHex, size = 16.dp)
                                             Text(cfg.name, color = c.textSub, fontSize = 12.sp)
                                             Text(r.count.toString(), color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                         }

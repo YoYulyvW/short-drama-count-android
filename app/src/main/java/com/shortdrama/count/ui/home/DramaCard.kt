@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shortdrama.count.model.Drama
 import com.shortdrama.count.ui.components.BounceNumber
+import com.shortdrama.count.ui.components.PlatformIcon
 import com.shortdrama.count.ui.components.PressableCard
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
@@ -119,7 +120,7 @@ fun DramaCard(vm: AppViewModel, date: String, drama: Drama, isLatest: Boolean) {
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     ) {
-                        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(parseHex(cfg.colorHex)))
+                        PlatformIcon(name = cfg.name, colorHex = cfg.colorHex, size = 22.dp)
                         Spacer(Modifier.width(10.dp))
                         Text(rec.platform, color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                         StepButton(Icons.Filled.Remove, c.cardElev, c.textSub) {
@@ -222,7 +223,7 @@ private fun AddPlatformDialog(vm: AppViewModel, onDismiss: () -> Unit, onPick: (
                             Modifier.fillMaxWidth().padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(parseHex(cfg.colorHex)))
+                            PlatformIcon(name = cfg.name, colorHex = cfg.colorHex, size = 22.dp)
                             Spacer(Modifier.width(8.dp))
                             Text(cfg.name, color = AppColorsHolder.text, fontSize = 14.sp)
                         }

@@ -209,12 +209,6 @@ fun RankBarRow(
     }
 }
 
-@Composable
-fun RankBarList(items: List<Triple<String, String, Int>>) {
-    // Triple: name, short+colorHex 合并处理太乱，改用 data class
-    RankBarListImpl(items)
-}
-
 data class RankItem(val name: String, val short: String, val colorHex: String, val count: Int)
 
 @Composable
@@ -225,7 +219,8 @@ fun RankBarListImpl(items: List<RankItem>) {
         items.forEachIndexed { idx, it ->
             RankBarRow(it.name, it.short, it.colorHex, it.count, maxCount, total)
             if (idx < items.size - 1) {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(AppColorsHolder.divider))
+                Box(Modifier.fillMaxWidth().height(1.dp)
+                    .background(if (AppColorsHolder.isDark) Color(0x33FFFFFF) else Color(0x22000000)))
             }
         }
     }

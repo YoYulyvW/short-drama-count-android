@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.shortdrama.count.ui.settings
 
 import androidx.activity.compose.BackHandler
@@ -5,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,15 +19,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.shortdrama.count.model.AppVersion
+import com.shortdrama.count.service.RelayClient
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
 import com.shortdrama.count.ui.theme.parseHex
 import com.shortdrama.count.util.AppConstants
 import com.shortdrama.count.util.Haptics
 import com.shortdrama.count.viewmodel.AppViewModel
+import com.shortdrama.count.viewmodel.ToastStyle
 
 private enum class SettingsPage { HOME, GENERAL, CONNECTION, DATA, UPDATE }
 
@@ -42,7 +51,7 @@ fun SettingsScreen(vm: AppViewModel) {
     }
 }
 
-// ==================== Ö÷Ò³£º·ÖÀàÈë¿Ú ====================
+// ==================== ä¸»é¡µï¼šåˆ†ç±»å…¥å£ ====================
 @Composable
 private fun SettingsHomePage(vm: AppViewModel, onOpen: (SettingsPage) -> Unit) {
     val settings by vm.settings.collectAsState()
@@ -51,15 +60,15 @@ private fun SettingsHomePage(vm: AppViewModel, onOpen: (SettingsPage) -> Unit) {
     val relayState by vm.relayState.collectAsState()
     val c = AppColorsHolder
 
-    val connBadge = when {
+    val connBadge: Pair<String, Color> = when {
         settings.relayEnabled -> when (relayState) {
-            com.shortdrama.count.service.RelayClient.State.CONNECTED -> "ÒÑÁ¬½Ó" to Palette.green
-            com.shortdrama.count.service.RelayClient.State.CONNECTING -> "Á¬½ÓÖĞ" to Palette.orange
-            com.shortdrama.count.service.RelayClient.State.ERROR -> "Òì³£" to Palette.red
-            else -> "Î´ÆôÓÃ" to c.textSub
+            RelayClient.State.CONNECTED -> "å·²è¿æ¥" to Palette.green
+            RelayClient.State.CONNECTING -> "è¿æ¥ä¸­" to Palette.orange
+            RelayClient.State.ERROR -> "å¼‚å¸¸" to Palette.red
+            else -> "æœªå¯ç”¨" to c.textSub
         }
-        settings.lanEnabled -> (if (lanRunning) "¾ÖÓòÍø" to Palette.green else "¾ÖÓòÍø" to Palette.orange)
-        else -> "Î´ÆôÓÃ" to c.textSub
+        settings.lanEnabled -> (if (lanRunning) "å±€åŸŸç½‘" to Palette.green else "å±€åŸŸç½‘" to Palette.orange)
+        else -> "æœªå¯ç”¨" to c.textSub
     }
 
     LazyColumn(
@@ -67,51 +76,47 @@ private fun SettingsHomePage(vm: AppViewModel, onOpen: (SettingsPage) -> Unit) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { Text("ÉèÖÃ", color = c.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+        item { Text("è®¾ç½®", color = c.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
 
         item {
             SettingsGroupCard {
                 SettingsRow(
-                    iconRes = null, iconEmoji = "??", iconBg = "#8E8E93",
-                    title = "Í¨ÓÃ", subtitle = "ÏÔÊ¾ ¡¤ ·´À¡ ¡¤ Í³¼Æ",
+                    iconEmoji = "\u2699\uFE0F", iconBg = "#8E8E93",
+                    title = "é€šç”¨", subtitle = "æ˜¾ç¤º Â· åé¦ˆ Â· ç»Ÿè®¡",
                     onClick = { onOpen(SettingsPage.GENERAL) },
                 )
             }
         }
-
         item {
             SettingsGroupCard {
                 SettingsRow(
-                    iconEmoji = "??", iconBg = "#34C759",
-                    title = "ÍÆËÍÓëÁ¬½Ó", subtitle = null,
+                    iconEmoji = "\uD83D\uDCE1", iconBg = "#34C759",
+                    title = "æ¨é€ä¸è¿æ¥", subtitle = null,
                     badge = connBadge.first, badgeColor = connBadge.second,
                     onClick = { onOpen(SettingsPage.CONNECTION) },
                 )
             }
         }
-
         item {
             SettingsGroupCard {
                 SettingsRow(
-                    iconEmoji = "???", iconBg = "#5E5CE6",
-                    title = "Êı¾İ",
-                    subtitle = days.size.toString() + " Ìì ¡¤ " + settings.platforms.size + " Æ½Ì¨",
+                    iconEmoji = "\uD83D\uDDC4", iconBg = "#5E5CE6",
+                    title = "æ•°æ®",
+                    subtitle = days.size.toString() + " å¤© Â· " + settings.platforms.size + " å¹³å°",
                     onClick = { onOpen(SettingsPage.DATA) },
                 )
             }
         }
-
         item {
             SettingsGroupCard {
                 SettingsRow(
-                    iconEmoji = "??", iconBg = "#007AFF",
-                    title = "Èí¼ş¸üĞÂ",
-                    subtitle = "v" + com.shortdrama.count.model.AppVersion.name,
+                    iconEmoji = "\uD83D\uDD04", iconBg = "#007AFF",
+                    title = "è½¯ä»¶æ›´æ–°",
+                    subtitle = "v" + AppVersion.name,
                     onClick = { onOpen(SettingsPage.UPDATE) },
                 )
             }
         }
-
         item { Spacer(Modifier.height(70.dp)) }
     }
 }
@@ -126,7 +131,7 @@ private fun SettingsGroupCard(content: @Composable () -> Unit) {
 
 @Composable
 private fun SettingsRow(
-    iconRes: Any?, iconEmoji: String, iconBg: String,
+    iconEmoji: String, iconBg: String,
     title: String, subtitle: String?,
     badge: String? = null, badgeColor: Color = Palette.textSub,
     onClick: (() -> Unit)? = null,
@@ -134,9 +139,7 @@ private fun SettingsRow(
     val c = AppColorsHolder
     Row(
         Modifier.fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable {
-                onClick(); Haptics.tap()
-            } else Modifier)
+            .then(if (onClick != null) Modifier.clickable { onClick(); Haptics.tap() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -160,23 +163,23 @@ private fun SettingsRow(
     }
 }
 
-// ==================== Í¨ÓÃ ====================
+// ==================== é€šç”¨ ====================
 @Composable
 private fun GeneralSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     val settings by vm.settings.collectAsState()
     val c = AppColorsHolder
 
-    SubPageScaffold(title = "Í¨ÓÃ", onBack = onBack) {
+    SubPageScaffold(title = "é€šç”¨", onBack = onBack) {
         item {
-            GroupTitle("ÏÔÊ¾Æ«ºÃ")
+            GroupTitle("æ˜¾ç¤ºåå¥½")
             SettingsGroupCard {
                 Column {
-                    SwitchRow("Ê×Ò³ÏÔÊ¾¹¤¾ßĞĞ", settings.showQuickTools) {
+                    SwitchRow("é¦–é¡µæ˜¾ç¤ºå·¥å…·è¡Œ", settings.showQuickTools) {
                         vm.updateSettings(settings.copy(showQuickTools = it)); vm.saveSettings()
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Row {
-                            Text("¹¤¾ß°´Å¥´óĞ¡", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text("å·¥å…·æŒ‰é’®å¤§å°", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             Text(settings.toolButtonSize.toString(), color = c.textSub, fontSize = 14.sp)
                         }
                         Slider(
@@ -186,38 +189,38 @@ private fun GeneralSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
                             valueRange = 40f..80f,
                         )
                     }
-                    SwitchRow("×Ô¶¯ÕÛµş¾ç¼¯", settings.autoCollapse) {
+                    SwitchRow("è‡ªåŠ¨æŠ˜å å‰§é›†", settings.autoCollapse) {
                         vm.updateSettings(settings.copy(autoCollapse = it)); vm.saveSettings()
                     }
-                    SwitchRow("Ê±¼äÓëÆ½Ì¨ÃûÍ¬ĞĞ", settings.timeInline) {
+                    SwitchRow("æ—¶é—´ä¸å¹³å°ååŒè¡Œ", settings.timeInline) {
                         vm.updateSettings(settings.copy(timeInline = it)); vm.saveSettings()
                     }
                 }
             }
         }
         item {
-            GroupTitle("½»»¥·´À¡")
+            GroupTitle("äº¤äº’åé¦ˆ")
             SettingsGroupCard {
                 Column {
-                    SwitchRow("Õğ¶¯·´À¡", settings.hapticFeedback) {
+                    SwitchRow("éœ‡åŠ¨åé¦ˆ", settings.hapticFeedback) {
                         vm.updateSettings(settings.copy(hapticFeedback = it)); vm.saveSettings()
                     }
-                    SwitchRow("°´Å¥ÒôĞ§", settings.soundFeedback) {
+                    SwitchRow("æŒ‰é’®éŸ³æ•ˆ", settings.soundFeedback) {
                         vm.updateSettings(settings.copy(soundFeedback = it)); vm.saveSettings()
                     }
                 }
             }
         }
         item {
-            GroupTitle("Í³¼ÆÆ«ºÃ")
+            GroupTitle("ç»Ÿè®¡åå¥½")
             SettingsGroupCard {
                 Column {
-                    SwitchRow("°´¹ã¸æÊıÅÅĞò", settings.sortByAds) {
+                    SwitchRow("æŒ‰å¹¿å‘Šæ•°æ’åº", settings.sortByAds) {
                         vm.updateSettings(settings.copy(sortByAds = it)); vm.saveSettings()
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Row {
-                            Text("Ã¿ÈÕ´æµµÉÏÏŞ", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text("æ¯æ—¥å­˜æ¡£ä¸Šé™", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             Text(settings.maxUndoPerDay.toString(), color = c.textSub, fontSize = 14.sp)
                         }
                         Slider(
@@ -233,7 +236,7 @@ private fun GeneralSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     }
 }
 
-// ==================== ÍÆËÍÓëÁ¬½Ó ====================
+// ==================== æ¨é€ä¸è¿æ¥ ====================
 @Composable
 private fun ConnectionSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     val settings by vm.settings.collectAsState()
@@ -242,55 +245,54 @@ private fun ConnectionSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     val lanIp by vm.lanIp.collectAsState()
     val relayState by vm.relayState.collectAsState()
     val relayErr by vm.relayLastError.collectAsState()
-    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val clipboard = LocalClipboardManager.current
     val c = AppColorsHolder
 
-    SubPageScaffold(title = "ÍÆËÍÓëÁ¬½Ó", onBack = onBack) {
+    SubPageScaffold(title = "æ¨é€ä¸è¿æ¥", onBack = onBack) {
         item {
-            GroupTitle("¾ÖÓòÍø·şÎñ")
+            GroupTitle("å±€åŸŸç½‘æœåŠ¡")
             SettingsGroupCard {
                 Column {
-                    SwitchRow("ÆôÓÃ¾ÖÓòÍøÊäÈë", settings.lanEnabled) {
+                    SwitchRow("å¯ç”¨å±€åŸŸç½‘è¾“å…¥", settings.lanEnabled) {
                         vm.updateSettings(settings.copy(lanEnabled = it)); vm.saveSettings(); vm.refreshLanIp()
                     }
                     if (settings.lanEnabled) {
                         val ip = lanIp
                         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("·şÎñ×´Ì¬", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text("æœåŠ¡çŠ¶æ€", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             Box(Modifier.size(8.dp).clip(CircleShape).background(if (lanRunning) Palette.green else Palette.orange))
                             Spacer(Modifier.width(8.dp))
-                            Text(if (lanRunning) "ÔËĞĞÖĞ" else "Î´ÔËĞĞ",
+                            Text(if (lanRunning) "è¿è¡Œä¸­" else "æœªè¿è¡Œ",
                                 color = if (lanRunning) Palette.green else Palette.orange,
                                 fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                         if (ip != null && lanRunning) {
                             val url = "http://" + ip + ":" + lanPort
                             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("·ÃÎÊµØÖ·", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text("è®¿é—®åœ°å€", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                                 Text(url, color = Palette.blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             }
                             Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                                 TextButton(onClick = {
-                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(url))
-                                    vm.showToast("ÒÑ¸´ÖÆµØÖ·", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
-                                }) { Text("¸´ÖÆµØÖ·") }
+                                    clipboard.setText(AnnotatedString(url))
+                                    vm.showToast("å·²å¤åˆ¶åœ°å€", ToastStyle.SUCCESS)
+                                }) { Text("å¤åˆ¶åœ°å€") }
                                 Spacer(Modifier.weight(1f))
-                                TextButton(onClick = { vm.refreshLanIp() }) { Text("Ë¢ĞÂ") }
+                                TextButton(onClick = { vm.refreshLanIp() }) { Text("åˆ·æ–°") }
                             }
                         }
-                        SwitchRow("ÏÔÊ¾ÎÕÊÖÌáÊ¾", settings.showHandshakeToast) {
+                        SwitchRow("æ˜¾ç¤ºæ¡æ‰‹æç¤º", settings.showHandshakeToast) {
                             vm.updateSettings(settings.copy(showHandshakeToast = it)); vm.saveSettings()
                         }
                     }
                 }
             }
         }
-
         item {
-            GroupTitle("ÖĞ¼Ì·şÎñÆ÷")
+            GroupTitle("ä¸­ç»§æœåŠ¡å™¨")
             SettingsGroupCard {
                 Column {
-                    SwitchRow("ÆôÓÃÖĞ¼Ì·şÎñÆ÷", settings.relayEnabled) {
+                    SwitchRow("å¯ç”¨ä¸­ç»§æœåŠ¡å™¨", settings.relayEnabled) {
                         vm.updateSettings(settings.copy(relayEnabled = it)); vm.saveSettings()
                     }
                     if (settings.relayEnabled) {
@@ -298,50 +300,49 @@ private fun ConnectionSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
                             OutlinedTextField(
                                 value = settings.relayUrl,
                                 onValueChange = { vm.updateSettings(settings.copy(relayUrl = it)) },
-                                label = { Text("·şÎñÆ÷µØÖ·£¨https://...£©") },
+                                label = { Text("æœåŠ¡å™¨åœ°å€ï¼ˆhttps://...ï¼‰") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
                         val relayStatusText = when (relayState) {
-                            com.shortdrama.count.service.RelayClient.State.CONNECTED -> "ÒÑÁ¬½Ó"
-                            com.shortdrama.count.service.RelayClient.State.CONNECTING -> "Á¬½ÓÖĞ¡­"
-                            com.shortdrama.count.service.RelayClient.State.ERROR -> "Òì³£"
-                            else -> "Î´ÆôÓÃ"
+                            RelayClient.State.CONNECTED -> "å·²è¿æ¥"
+                            RelayClient.State.CONNECTING -> "è¿æ¥ä¸­â€¦"
+                            RelayClient.State.ERROR -> "å¼‚å¸¸"
+                            else -> "æœªå¯ç”¨"
                         }
                         val relayStatusColor = when (relayState) {
-                            com.shortdrama.count.service.RelayClient.State.CONNECTED -> Palette.green
-                            com.shortdrama.count.service.RelayClient.State.CONNECTING -> Palette.orange
-                            com.shortdrama.count.service.RelayClient.State.ERROR -> Palette.red
+                            RelayClient.State.CONNECTED -> Palette.green
+                            RelayClient.State.CONNECTING -> Palette.orange
+                            RelayClient.State.ERROR -> Palette.red
                             else -> c.textSub
                         }
                         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Á¬½Ó×´Ì¬", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text("è¿æ¥çŠ¶æ€", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             Box(Modifier.size(8.dp).clip(CircleShape).background(relayStatusColor))
                             Spacer(Modifier.width(8.dp))
                             Text(relayStatusText, color = relayStatusColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
-                        if (relayErr != null && relayState == com.shortdrama.count.service.RelayClient.State.ERROR) {
+                        if (relayErr != null && relayState == RelayClient.State.ERROR) {
                             Text(relayErr ?: "", color = Palette.red, fontSize = 11.sp,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                         }
                         TextButton(
                             onClick = { vm.saveSettings(); Haptics.tap() },
                             modifier = Modifier.padding(horizontal = 8.dp),
-                        ) { Text("Á¢¼´ÖØÁ¬") }
+                        ) { Text("ç«‹å³é‡è¿") }
                     }
                 }
             }
         }
-
         item {
-            GroupTitle("Í¨Öª")
+            GroupTitle("é€šçŸ¥")
             SettingsGroupCard {
                 Column {
-                    SwitchRow("ÊÕµ½ÍÆËÍÊ±µ¯Í¨Öª", settings.notifyOnPush) {
+                    SwitchRow("æ”¶åˆ°æ¨é€æ—¶å¼¹é€šçŸ¥", settings.notifyOnPush) {
                         vm.updateSettings(settings.copy(notifyOnPush = it)); vm.saveSettings()
                     }
-                    SwitchRow("µã»÷ºóÏÈÑ¯ÎÊÔÙ´ò¿ª", settings.askBeforeOpenPush) {
+                    SwitchRow("ç‚¹å‡»åå…ˆè¯¢é—®å†æ‰“å¼€", settings.askBeforeOpenPush) {
                         vm.updateSettings(settings.copy(askBeforeOpenPush = it)); vm.saveSettings()
                     }
                 }
@@ -350,13 +351,13 @@ private fun ConnectionSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     }
 }
 
-// ==================== Êı¾İ ====================
+// ==================== æ•°æ® ====================
 @Composable
 private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     val settings by vm.settings.collectAsState()
     val days by vm.days.collectAsState()
     val c = AppColorsHolder
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     var showDeleteDay by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     var showClearFinal by remember { mutableStateOf(false) }
@@ -368,36 +369,35 @@ private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
             try {
                 val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                 if (text != null && vm.importBackup(text)) {
-                    vm.showToast("±¸·İµ¼Èë³É¹¦", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                    vm.showToast("å¤‡ä»½å¯¼å…¥æˆåŠŸ", ToastStyle.SUCCESS)
                 } else {
-                    vm.showToast("±¸·İ¸ñÊ½´íÎó", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                    vm.showToast("å¤‡ä»½æ ¼å¼é”™è¯¯", ToastStyle.ERROR)
                 }
             } catch (e: Exception) {
-                vm.showToast("µ¼ÈëÊ§°Ü£º" + e.message, com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                vm.showToast("å¯¼å…¥å¤±è´¥ï¼š" + e.message, ToastStyle.ERROR)
             }
         }
     }
 
-    SubPageScaffold(title = "Êı¾İ", onBack = onBack) {
+    SubPageScaffold(title = "æ•°æ®", onBack = onBack) {
         item {
-            GroupTitle("×ÖµäÓëÊı¾İ¿â")
+            GroupTitle("å­—å…¸ä¸æ•°æ®åº“")
             SettingsGroupCard {
                 Column {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Æ½Ì¨×Öµä", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                        Text(settings.platforms.size.toString() + " ¸ö", color = c.textSub, fontSize = 14.sp)
+                        Text("å¹³å°å­—å…¸", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text(settings.platforms.size.toString() + " ä¸ª", color = c.textSub, fontSize = 14.sp)
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(dividerColor(c.isDark)))
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("¼ÇÂ¼ÌìÊı", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text("è®°å½•å¤©æ•°", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                         Text(days.size.toString(), color = c.textSub, fontSize = 14.sp)
                     }
                 }
             }
         }
-
         item {
-            GroupTitle("Êı¾İ¹ÜÀí")
+            GroupTitle("æ•°æ®ç®¡ç†")
             SettingsGroupCard {
                 Column {
                     Row(
@@ -405,7 +405,7 @@ private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("É¾³ıÖ¸¶¨ÈÕÆÚÊı¾İ", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text("åˆ é™¤æŒ‡å®šæ—¥æœŸæ•°æ®", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                         Icon(Icons.Filled.ChevronRight, null, tint = c.textSub.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(dividerColor(c.isDark)))
@@ -414,14 +414,13 @@ private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Çå¿ÕËùÓĞÊı¾İ", color = Palette.red, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text("æ¸…ç©ºæ‰€æœ‰æ•°æ®", color = Palette.red, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
-
         item {
-            GroupTitle("Êı¾İ±¸·İ")
+            GroupTitle("æ•°æ®å¤‡ä»½")
             SettingsGroupCard {
                 Column {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -429,11 +428,11 @@ private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
                             val json = vm.exportBackup()
                             val file = java.io.File(context.cacheDir, "shortdrama_backup.json")
                             file.writeText(json)
-                            com.shortdrama.count.util.BackupShare.shareFile(context, file, "application/json", "µ¼³ö±¸·İ")
-                        }, modifier = Modifier.weight(1f)) { Text("µ¼³ö±¸·İ") }
+                            com.shortdrama.count.util.BackupShare.shareFile(context, file, "application/json", "å¯¼å‡ºå¤‡ä»½")
+                        }, modifier = Modifier.weight(1f)) { Text("å¯¼å‡ºå¤‡ä»½") }
                         OutlinedButton(onClick = {
                             backupImportLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
-                        }, modifier = Modifier.weight(1f)) { Text("µ¼Èë±¸·İ") }
+                        }, modifier = Modifier.weight(1f)) { Text("å¯¼å…¥å¤‡ä»½") }
                     }
                 }
             }
@@ -446,10 +445,10 @@ private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            confirmButton = { TextButton(onClick = { showClearConfirm = false; showClearFinal = true }) { Text("¼ÌĞø", color = Palette.red) } },
-            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("È¡Ïû") } },
-            title = { Text("È·ÈÏÇå¿Õ£¿") },
-            text = { Text("½«É¾³ıÈ«²¿¶Ì¾ç¼ÇÂ¼¡¢Æ½Ì¨¼ÇÂ¼¡¢ÀúÊ·´æµµ¡£´Ë²Ù×÷ÎŞ·¨»Ö¸´¡£") },
+            confirmButton = { TextButton(onClick = { showClearConfirm = false; showClearFinal = true }) { Text("ç»§ç»­", color = Palette.red) } },
+            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("å–æ¶ˆ") } },
+            title = { Text("ç¡®è®¤æ¸…ç©ºï¼Ÿ") },
+            text = { Text("å°†åˆ é™¤å…¨éƒ¨çŸ­å‰§è®°å½•ã€å¹³å°è®°å½•ã€å†å²å­˜æ¡£ã€‚æ­¤æ“ä½œæ— æ³•æ¢å¤ã€‚") },
         )
     }
     if (showClearFinal) {
@@ -458,55 +457,55 @@ private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     vm.clearAllData()
-                    vm.showToast("ÒÑÇå¿ÕËùÓĞÊı¾İ", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                    vm.showToast("å·²æ¸…ç©ºæ‰€æœ‰æ•°æ®", ToastStyle.SUCCESS)
                     showClearFinal = false
-                }) { Text("³¹µ×Çå¿Õ", color = Palette.red) }
+                }) { Text("å½»åº•æ¸…ç©º", color = Palette.red) }
             },
-            dismissButton = { TextButton(onClick = { showClearFinal = false }) { Text("È¡Ïû") } },
-            title = { Text("×îºóÈ·ÈÏ") },
-            text = { Text("ÕæµÄÒªÇå¿ÕËùÓĞÊı¾İÂğ£¿É¾³ıºóÎŞ·¨³·Ïú¡£") },
+            dismissButton = { TextButton(onClick = { showClearFinal = false }) { Text("å–æ¶ˆ") } },
+            title = { Text("æœ€åç¡®è®¤") },
+            text = { Text("çœŸçš„è¦æ¸…ç©ºæ‰€æœ‰æ•°æ®å—ï¼Ÿåˆ é™¤åæ— æ³•æ’¤é”€ã€‚") },
         )
     }
 }
 
-// ==================== Èí¼ş¸üĞÂ ====================
+// ==================== è½¯ä»¶æ›´æ–° ====================
 @Composable
 private fun UpdateSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
     val settings by vm.settings.collectAsState()
     val lastMessage by vm.lastMessage.collectAsState()
     val c = AppColorsHolder
 
-    SubPageScaffold(title = "Èí¼ş¸üĞÂ", onBack = onBack) {
+    SubPageScaffold(title = "è½¯ä»¶æ›´æ–°", onBack = onBack) {
         item {
-            GroupTitle("Èí¼ş¸üĞÂ")
+            GroupTitle("è½¯ä»¶æ›´æ–°")
             SettingsGroupCard {
                 Column {
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("µ±Ç°°æ±¾", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                        Text("v" + com.shortdrama.count.model.AppVersion.full, color = c.textSub, fontSize = 13.sp)
+                        Text("å½“å‰ç‰ˆæœ¬", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text("v" + AppVersion.full, color = c.textSub, fontSize = 13.sp)
                     }
-                    SwitchRow("×Ô¶¯¼ì²é¸üĞÂ", settings.autoUpdateCheck) {
+                    SwitchRow("è‡ªåŠ¨æ£€æŸ¥æ›´æ–°", settings.autoUpdateCheck) {
                         vm.updateSettings(settings.copy(autoUpdateCheck = it)); vm.saveSettings()
                     }
-                    SwitchRow("¾²Ä¬ÏÂÔØ", settings.silentDownload) {
+                    SwitchRow("é™é»˜ä¸‹è½½", settings.silentDownload) {
                         vm.updateSettings(settings.copy(silentDownload = it)); vm.saveSettings()
                     }
-                    SwitchRow("×Ô¶¯ÌáÊ¾°²×°", settings.autoPromptInstall) {
+                    SwitchRow("è‡ªåŠ¨æç¤ºå®‰è£…", settings.autoPromptInstall) {
                         vm.updateSettings(settings.copy(autoPromptInstall = it)); vm.saveSettings()
                     }
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { vm.checkForUpdate(silent = false, force = true) }, modifier = Modifier.weight(1f)) {
-                            Text("¼ì²é¸üĞÂ")
+                            Text("æ£€æŸ¥æ›´æ–°")
                         }
                         OutlinedButton(onClick = { vm.testCustomProxy(settings.customUpdateProxy) }, modifier = Modifier.weight(1f)) {
-                            Text("²âÊÔ´úÀí")
+                            Text("æµ‹è¯•ä»£ç†")
                         }
                     }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         OutlinedTextField(
                             value = settings.customUpdateProxy,
                             onValueChange = { vm.updateSettings(settings.copy(customUpdateProxy = it)) },
-                            label = { Text("×Ô¶¨Òå´úÀí£¨¿ÉÑ¡£©") },
+                            label = { Text("è‡ªå®šä¹‰ä»£ç†ï¼ˆå¯é€‰ï¼‰") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -519,24 +518,24 @@ private fun UpdateSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
             }
         }
         item {
-            GroupTitle("¹ØÓÚ")
+            GroupTitle("å…³äº")
             SettingsGroupCard {
                 Column(Modifier.padding(16.dp)) {
-                    Text("¿ª·¹ÁË ¡¤ ¶Ì¾ç¼ÆÊı£¨Android£©", color = c.text, fontSize = 14.sp)
+                    Text("å¼€é¥­äº† Â· çŸ­å‰§è®¡æ•°ï¼ˆAndroidï¼‰", color = c.text, fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text("°æ±¾ " + com.shortdrama.count.model.AppVersion.full, color = c.textSub, fontSize = 12.sp)
+                    Text("ç‰ˆæœ¬ " + AppVersion.full, color = c.textSub, fontSize = 12.sp)
                 }
             }
         }
     }
 }
 
-// ==================== Í¨ÓÃ½ÅÊÖ¼Ü ====================
+// ==================== é€šç”¨è„šæ‰‹æ¶ ====================
 @Composable
 private fun SubPageScaffold(
     title: String,
     onBack: () -> Unit,
-    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
+    content: LazyListScope.() -> Unit,
 ) {
     val c = AppColorsHolder
     Column(Modifier.fillMaxSize().background(c.bg)) {
@@ -578,7 +577,10 @@ private fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean
     }
 }
 
-// ==================== É¾³ıÖ¸¶¨ÈÕÆÚ¶Ô»°¿ò ====================
+private fun dividerColor(isDark: Boolean): Color =
+    if (isDark) Color(0x33FFFFFF) else Color(0x22000000)
+
+// ==================== åˆ é™¤æŒ‡å®šæ—¥æœŸå¯¹è¯æ¡† ====================
 @Composable
 private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val c = AppColorsHolder
@@ -599,14 +601,14 @@ private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 if (!hasData) {
-                    vm.showToast("¸ÃÈÕÆÚÃ»ÓĞÊı¾İ", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                    vm.showToast("è¯¥æ—¥æœŸæ²¡æœ‰æ•°æ®", ToastStyle.ERROR)
                     return@TextButton
                 }
                 showFirst = true
-            }) { Text("É¾³ı", color = Palette.red) }
+            }) { Text("åˆ é™¤", color = Palette.red) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("È¡Ïû") } },
-        title = { Text("É¾³ıÖ¸¶¨ÈÕÆÚÊı¾İ") },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("å–æ¶ˆ") } },
+        title = { Text("åˆ é™¤æŒ‡å®šæ—¥æœŸæ•°æ®") },
         text = {
             Column {
                 OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
@@ -614,13 +616,13 @@ private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Row {
-                    Text("¸ÃÈÕ¶Ì¾ç", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Text(dramaCount.toString() + " ²¿", color = c.text, fontSize = 13.sp)
+                    Text("è¯¥æ—¥çŸ­å‰§", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(dramaCount.toString() + " éƒ¨", color = c.text, fontSize = 13.sp)
                 }
                 Spacer(Modifier.height(4.dp))
                 Row {
-                    Text("¸ÃÈÕ¼ÇÂ¼", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Text(recordCount.toString() + " Ìõ", color = c.text, fontSize = 13.sp)
+                    Text("è¯¥æ—¥è®°å½•", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(recordCount.toString() + " æ¡", color = c.text, fontSize = 13.sp)
                 }
             }
         },
@@ -634,19 +636,19 @@ private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 TextButton(onClick = {
                     state.selectedDateMillis?.let { pickedDate = java.util.Date(it) }
                     showPicker = false
-                }) { Text("È·¶¨") }
+                }) { Text("ç¡®å®š") }
             },
-            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("È¡Ïû") } },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("å–æ¶ˆ") } },
         ) { DatePicker(state = state) }
     }
 
     if (showFirst) {
         AlertDialog(
             onDismissRequest = { showFirst = false },
-            confirmButton = { TextButton(onClick = { showFirst = false; showFinal = true }) { Text("¼ÌĞø", color = Palette.red) } },
-            dismissButton = { TextButton(onClick = { showFirst = false }) { Text("È¡Ïû") } },
-            title = { Text("È·ÈÏÉ¾³ı£¿") },
-            text = { Text("½«É¾³ı " + pickedStr + " µÄÈ«²¿¶Ì¾çÓëÆ½Ì¨¼ÇÂ¼¡£´Ë²Ù×÷ÎŞ·¨»Ö¸´¡£") },
+            confirmButton = { TextButton(onClick = { showFirst = false; showFinal = true }) { Text("ç»§ç»­", color = Palette.red) } },
+            dismissButton = { TextButton(onClick = { showFirst = false }) { Text("å–æ¶ˆ") } },
+            title = { Text("ç¡®è®¤åˆ é™¤ï¼Ÿ") },
+            text = { Text("å°†åˆ é™¤ " + pickedStr + " çš„å…¨éƒ¨çŸ­å‰§ä¸å¹³å°è®°å½•ã€‚æ­¤æ“ä½œæ— æ³•æ¢å¤ã€‚") },
         )
     }
 
@@ -656,17 +658,14 @@ private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     vm.deleteDay(pickedStr)
-                    vm.showToast("ÒÑÉ¾³ı " + pickedStr + " µÄÊı¾İ", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                    vm.showToast("å·²åˆ é™¤ " + pickedStr + " çš„æ•°æ®", ToastStyle.SUCCESS)
                     showFinal = false
                     onDismiss()
-                }) { Text("³¹µ×É¾³ı", color = Palette.red) }
+                }) { Text("å½»åº•åˆ é™¤", color = Palette.red) }
             },
-            dismissButton = { TextButton(onClick = { showFinal = false }) { Text("È¡Ïû") } },
-            title = { Text("×îºóÈ·ÈÏ") },
-            text = { Text("ÕæµÄÒªÉ¾³ı " + pickedStr + " µÄÊı¾İÂğ£¿É¾³ıºóÎŞ·¨³·Ïú¡£") },
+            dismissButton = { TextButton(onClick = { showFinal = false }) { Text("å–æ¶ˆ") } },
+            title = { Text("æœ€åç¡®è®¤") },
+            text = { Text("çœŸçš„è¦åˆ é™¤ " + pickedStr + " çš„æ•°æ®å—ï¼Ÿåˆ é™¤åæ— æ³•æ’¤é”€ã€‚") },
         )
     }
 }
-
-private fun dividerColor(isDark: Boolean): Color =
-    if (isDark) Color(0x33FFFFFF) else Color(0x22000000)

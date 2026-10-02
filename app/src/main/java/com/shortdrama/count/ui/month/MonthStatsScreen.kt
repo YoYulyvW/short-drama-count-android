@@ -6,10 +6,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,9 +24,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shortdrama.count.ui.components.HeroCard
+import com.shortdrama.count.ui.components.HeroPills
+import com.shortdrama.count.ui.components.KPIRow
+import com.shortdrama.count.ui.components.KpiItem
 import com.shortdrama.count.ui.components.LineChartView
-import com.shortdrama.count.ui.components.SectionCard
-import com.shortdrama.count.ui.components.StatPill
+import com.shortdrama.count.ui.components.RankBarListImpl
+import com.shortdrama.count.ui.components.RankItem
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
 import com.shortdrama.count.util.AppConstants
@@ -44,7 +45,6 @@ fun MonthStatsScreen(vm: AppViewModel) {
     var dayDetail by remember { mutableStateOf<com.shortdrama.count.model.DayData?>(null) }
     val c = AppColorsHolder
 
-    val cal = Calendar.getInstance()
     fun monthRange(): Pair<Date, Date> {
         val cc = Calendar.getInstance().apply { time = month; set(Calendar.DAY_OF_MONTH, 1) }
         val start = cc.time
@@ -58,6 +58,8 @@ fun MonthStatsScreen(vm: AppViewModel) {
         while (cc.time.before(end)) { dayList.add(cc.time); cc.add(Calendar.DAY_OF_MONTH, 1) }
     }
     var totalDramas = 0; var totalAds = 0
+    var activeDays = 0
+    val platformSums = mutableMapOf<String, Int>()
     val points = mutableListOf<Int>()
     val countsByDay = mutableMapOf<String, Int>()
     for (d in dayList) {
@@ -66,21 +68,27 @@ fun MonthStatsScreen(vm: AppViewModel) {
         val ads = day?.records?.sumOf { it.count } ?: 0
         totalAds += ads
         totalDramas += day?.dramas?.size ?: 0
+        if (ads > 0) activeDays++
+        day?.records?.forEach { r -> platformSums[r.platform] = (platformSums[r.platform] ?: 0) + r.count }
         points.add(ads)
         countsByDay[ds] = ads
     }
-    val avg = if (dayList.isNotEmpty()) totalAds.toDouble() / dayList.size else 0.0
+    val avg = if (activeDays > 0) totalAds.toDouble() / activeDays else 0.0
+    val perDrama = if (totalDramas > 0) totalAds.toDouble() / totalDramas else 0.0
     val isCurrentMonth = run {
         val c1 = Calendar.getInstance().apply { time = month }
         val c2 = Calendar.getInstance()
         c1.get(Calendar.YEAR) == c2.get(Calendar.YEAR) && c1.get(Calendar.MONTH) == c2.get(Calendar.MONTH)
     }
+    val rankItems = platformSums.entries.sortedByDescending { it.value }.map { e ->
+        val cfg = vm.platformConfig(e.key)
+        RankItem(e.key, cfg.short, cfg.colorHex, e.value)
+    }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(1),
+    LazyColumn(
         modifier = Modifier.fillMaxSize().background(c.bg),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -98,84 +106,207 @@ fun MonthStatsScreen(vm: AppViewModel) {
         item {
             HeroCard(Palette.monthGradient) {
                 Column(Modifier.padding(20.dp)) {
-                    Text("本月", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("本月共记录", color = Color.White.copy(alpha = 0.88f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text(totalDramas.toString(), color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.Bold)
+                        Text(totalDramas.toString(), color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.Black)
                         Spacer(Modifier.width(6.dp))
-                        Text("部短剧", color = Color.White.copy(alpha = 0.95f), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(bottom = 8.dp))
+                        Text("部短剧", color = Color.White.copy(alpha = 0.92f), fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatPill("广告", totalAds.toString() + " 条", Modifier.weight(1f))
-                        StatPill("日均", String.format(java.util.Locale.US, "%.1f 条", avg), Modifier.weight(1f))
+                    Spacer(Modifier.height(10.dp))
+                    HeroPills(listOf(
+                        "广告总数" to totalAds.toString(),
+                        "日均" to String.format(java.util.Locale.US, "%.1f", avg),
+                        "活跃天" to activeDays.toString(),
+                    ))
+                }
+            }
+        }
+        item {
+            KPIRow(listOf(
+                KpiItem(totalDramas.toString(), "短剧", Palette.indigo),
+                KpiItem(totalAds.toString(), "广告", Palette.orange),
+                KpiItem(String.format(java.util.Locale.US, "%.1f", perDrama), "条/部", Palette.green),
+                KpiItem(platformSums.size.toString(), "平台", Palette.blue),
+            ))
+        }
+        item {
+            Column {
+                Row(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                    Text("广告趋势", color = c.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    Text("近 " + points.size + " 天", color = c.textSub.copy(alpha = 0.8f), fontSize = 11.sp)
+                }
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(14.dp)) {
+                    if (points.all { it == 0 }) {
+                        Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                            Text("本月暂无数据", color = c.textSub, fontSize = 13.sp)
+                        }
+                    } else {
+                        Column {
+                            LineChartView(points)
+                            Spacer(Modifier.height(6.dp))
+                            Row {
+                                Text("1", color = c.textSub, fontSize = 10.sp)
+                                Spacer(Modifier.weight(1f))
+                                val peak = points.maxOrNull() ?: 0
+                                if (peak > 0) Text("峰值 " + peak, color = Palette.indigo, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.weight(1f))
+                                Text(points.size.toString(), color = c.textSub, fontSize = 10.sp)
+                            }
+                        }
                     }
                 }
             }
         }
         item {
-            SectionCard(title = "月度广告趋势") {
-                if (points.all { it == 0 }) {
-                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        Text("本月暂无数据", color = c.textSub, fontSize = 13.sp)
+            Column {
+                Row(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                    Text("平台分布", color = c.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    Text("共 " + totalAds + " 条", color = c.textSub.copy(alpha = 0.8f), fontSize = 11.sp)
+                }
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(14.dp)) {
+                    if (rankItems.isEmpty()) {
+                        Text("本月暂无数据", color = c.textSub, fontSize = 13.sp,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), textAlign = TextAlign.Center)
+                    } else {
+                        RankBarListImpl(rankItems)
                     }
-                } else LineChartView(points)
-            }
-        }
-        item {
-            SectionCard(title = "看剧日历") {
-                HeatmapGrid(month, countsByDay) { ds ->
-                    days[ds]?.let { dayDetail = it }
                 }
             }
         }
+        item {
+            Column {
+                Row(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                    Text("看剧日历", color = c.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    Text("点击查看当天", color = c.textSub.copy(alpha = 0.8f), fontSize = 11.sp)
+                }
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).padding(14.dp)) {
+                    HeatmapGrid(month, countsByDay) { ds ->
+                        days[ds]?.let { dayDetail = it }
+                    }
+                }
+            }
+        }
+        item { Spacer(Modifier.height(70.dp)) }
     }
 
-    // 日期详情弹窗
     dayDetail?.let { data ->
-        DayDetailDialog(data = data, onDismiss = { dayDetail = null })
+        DayDetailDialog(data = data, vm = vm, onDismiss = { dayDetail = null })
     }
 }
 
 @Composable
-private fun DayDetailDialog(data: com.shortdrama.count.model.DayData, onDismiss: () -> Unit) {
+private fun DayDetailDialog(
+    data: com.shortdrama.count.model.DayData,
+    vm: AppViewModel,
+    onDismiss: () -> Unit,
+) {
     val c = AppColorsHolder
-    val valid = data.dramas.reversed().filter { drama ->
-        data.records.any { it.title == drama.title && it.isFast == drama.isFast }
+    val days by vm.days.collectAsState()
+    var currentDate by remember { mutableStateOf(parseDate(data.date) ?: Date()) }
+    val currentStr = AppConstants.dateString(currentDate)
+    val current = days[currentStr] ?: com.shortdrama.count.model.DayData(currentStr)
+
+    val valid = current.dramas.reversed().filter { drama ->
+        current.records.any { it.title == drama.title && it.isFast == drama.isFast }
     }
+    val platformSums = mutableMapOf<String, Int>()
+    valid.forEach { drama ->
+        current.records.filter { it.title == drama.title && it.isFast == drama.isFast }
+            .forEach { r -> platformSums[r.platform] = (platformSums[r.platform] ?: 0) + r.count }
+    }
+    val ads = platformSums.values.sum()
+    val rank = platformSums.entries.sortedByDescending { it.value }.map { e ->
+        val cfg = vm.platformConfig(e.key)
+        RankItem(e.key, cfg.short, cfg.colorHex, e.value)
+    }
+    val perDrama = if (valid.size > 0) ads.toDouble() / valid.size else 0.0
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } },
-        title = { Text(data.date) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { currentDate = shiftDay(currentDate, -1) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.ChevronLeft, null, tint = Palette.blue)
+                }
+                Text(AppConstants.chineseDate(currentDate), modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                val isToday = AppConstants.isToday(currentDate)
+                IconButton(
+                    onClick = { if (!isToday) currentDate = shiftDay(currentDate, 1) },
+                    enabled = !isToday, modifier = Modifier.size(32.dp),
+                ) { Icon(Icons.Filled.ChevronRight, null, tint = if (isToday) c.textSub.copy(alpha=0.4f) else Palette.blue) }
+            }
+        },
         text = {
-            if (valid.isEmpty()) {
-                Text("当天没有明细", color = c.textSub, fontSize = 13.sp)
-            } else {
-                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                HeroCard(Palette.monthGradient) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("当天共记录", color = Color.White.copy(alpha = 0.88f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(ads.toString(), color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Black)
+                            Spacer(Modifier.width(6.dp))
+                            Text("条广告", color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        HeroPills(listOf(
+                            "短剧" to (valid.size.toString() + " 部"),
+                            "平台" to (platformSums.size.toString() + " 个"),
+                            "均/部" to String.format(java.util.Locale.US, "%.1f", perDrama),
+                        ))
+                    }
+                }
+
+                if (rank.isNotEmpty()) {
+                    Text("平台累计", color = c.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card).padding(12.dp)) {
+                        RankBarListImpl(rank)
+                    }
+                }
+
+                if (valid.isEmpty()) {
+                    Text("当天没有明细", color = c.textSub, fontSize = 13.sp,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), textAlign = TextAlign.Center)
+                } else {
+                    Text("剧集明细", color = c.textSub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     valid.forEach { drama ->
-                        val recs = data.records.filter { it.title == drama.title && it.isFast == drama.isFast }
+                        val recs = current.records.filter { it.title == drama.title && it.isFast == drama.isFast }
+                        val total = recs.sumOf { it.count }
                         Column(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                                 .background(c.card).padding(12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(drama.title, color = c.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                                 if (drama.isFast) {
                                     Spacer(Modifier.width(6.dp))
-                                    Text("极速", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Palette.blue)
-                                            .padding(horizontal = 6.dp, vertical = 1.dp))
+                                    Text("极速", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Palette.orange)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                                 Spacer(Modifier.weight(1f))
-                                Text(recs.sumOf { it.count }.toString(), color = Palette.indigo,
-                                    fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(total.toString(), color = Palette.indigo, fontSize = 17.sp, fontWeight = FontWeight.Black)
                             }
-                            Spacer(Modifier.height(4.dp))
-                            recs.forEach { r ->
-                                Row(Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-                                    Text(r.platform, color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                    Text(r.count.toString(), color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                recs.forEach { r ->
+                                    val cfg = vm.platformConfig(r.platform)
+                                    Row(
+                                        Modifier.clip(RoundedCornerShape(8.dp)).background(c.cardElev)
+                                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    ) {
+                                        Box(Modifier.size(8.dp).clip(CircleShape).background(com.shortdrama.count.ui.theme.parseHex(cfg.colorHex)))
+                                        Text(cfg.name, color = c.textSub, fontSize = 12.sp)
+                                        Text(r.count.toString(), color = c.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -184,6 +315,18 @@ private fun DayDetailDialog(data: com.shortdrama.count.model.DayData, onDismiss:
             }
         },
     )
+}
+
+private fun parseDate(s: String): Date? {
+    return try {
+        val f = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        f.parse(s)
+    } catch (e: Exception) { null }
+}
+
+private fun shiftDay(date: Date, delta: Int): Date {
+    val c = Calendar.getInstance().apply { time = date; add(Calendar.DAY_OF_MONTH, delta) }
+    return c.time
 }
 
 private fun shiftMonth(date: Date, delta: Int): Date {
@@ -196,7 +339,7 @@ private fun HeatmapGrid(month: Date, counts: Map<String, Int>, onSelect: (String
     val c = AppColorsHolder
     val weekNames = listOf("日", "一", "二", "三", "四", "五", "六")
     val cal = Calendar.getInstance().apply { time = month; set(Calendar.DAY_OF_MONTH, 1) }
-    val firstWeekday = cal.get(Calendar.DAY_OF_WEEK) // 1=Sun
+    val firstWeekday = cal.get(Calendar.DAY_OF_WEEK)
     val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     val cells = mutableListOf<Date?>()
     for (i in 1 until firstWeekday) cells.add(null)
@@ -228,16 +371,19 @@ private fun HeatmapGrid(month: Date, counts: Map<String, Int>, onSelect: (String
                         Box(
                             Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(8.dp))
                                 .background(heatBg(cnt, c.isDark, c.cardElev))
-                                .then(
-                                    if (cnt > 0) Modifier.clickable {
-                                        onSelect(ds); Haptics.tap()
-                                    } else Modifier
-                                ),
+                                .then(if (cnt > 0) Modifier.clickable { onSelect(ds); Haptics.tap() } else Modifier)
+                                .then(if (isToday) Modifier.background(Color.Transparent) else Modifier),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(Calendar.getInstance().apply { time = date }.get(Calendar.DAY_OF_MONTH).toString(),
-                                color = if (cnt >= 4) Color.White else c.text, fontSize = 12.sp,
-                                fontWeight = if (cnt > 0) FontWeight.SemiBold else FontWeight.Normal)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(Calendar.getInstance().apply { time = date }.get(Calendar.DAY_OF_MONTH).toString(),
+                                    color = if (cnt >= 4) Color.White else c.text, fontSize = 12.sp,
+                                    fontWeight = if (cnt > 0) FontWeight.SemiBold else FontWeight.Normal)
+                                if (cnt > 0) {
+                                    Text(cnt.toString(), color = if (cnt >= 4) Color.White.copy(alpha=0.85f) else c.textSub,
+                                        fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }

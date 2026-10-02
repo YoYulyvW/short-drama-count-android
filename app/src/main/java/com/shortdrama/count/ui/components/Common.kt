@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.parseHex
 
@@ -159,6 +160,113 @@ fun StatPill(title: String, value: String, modifier: Modifier = Modifier) {
     ) {
         Text(title, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
         Text(value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+
+
+/** 平台排行条 */
+@Composable
+fun RankBarRow(
+    name: String,
+    short: String,
+    colorHex: String,
+    count: Int,
+    maxCount: Int,
+    total: Int,
+) {
+    val color = parseHex(colorHex)
+    val ratio = if (maxCount <= 0) 0f else count.toFloat() / maxCount
+    val percent = if (total <= 0) 0 else ((count.toDouble() / total) * 100).roundToInt()
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(color),
+            contentAlignment = Alignment.Center,
+        ) { Text(short, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black) }
+        Column(Modifier.weight(1f)) {
+            Text(name, color = AppColorsHolder.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(6.dp))
+            Box(
+                Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
+                    .background(AppColorsHolder.cardElev)
+            ) {
+                Box(
+                    Modifier.fillMaxHeight().fillMaxWidth(ratio.coerceIn(0f, 1f))
+                        .clip(RoundedCornerShape(3.dp)).background(color)
+                )
+            }
+        }
+        Text(count.toString(), color = AppColorsHolder.text, fontSize = 17.sp,
+            fontWeight = FontWeight.Black, modifier = Modifier.width(38.dp),
+            textAlign = TextAlign.End)
+        Text(percent.toString() + "%", color = AppColorsHolder.textSub, fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold, modifier = Modifier.width(34.dp),
+            textAlign = TextAlign.End)
+    }
+}
+
+@Composable
+fun RankBarList(items: List<Triple<String, String, Int>>) {
+    // Triple: name, short+colorHex 合并处理太乱，改用 data class
+    RankBarListImpl(items)
+}
+
+data class RankItem(val name: String, val short: String, val colorHex: String, val count: Int)
+
+@Composable
+fun RankBarListImpl(items: List<RankItem>) {
+    val maxCount = items.maxOfOrNull { it.count } ?: 1
+    val total = items.sumOf { it.count }
+    Column {
+        items.forEachIndexed { idx, it ->
+            RankBarRow(it.name, it.short, it.colorHex, it.count, maxCount, total)
+            if (idx < items.size - 1) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(AppColorsHolder.divider))
+            }
+        }
+    }
+}
+
+/** 4 格 KPI */
+data class KpiItem(val value: String, val label: String, val color: Color)
+
+@Composable
+fun KPIRow(items: List<KpiItem>) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { it ->
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                    .background(AppColorsHolder.card).padding(vertical = 12.dp, horizontal = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(it.value, color = it.color, fontSize = 19.sp, fontWeight = FontWeight.Black,
+                    maxLines = 1)
+                Spacer(Modifier.height(3.dp))
+                Text(it.label, color = AppColorsHolder.textSub, fontSize = 10.5.sp)
+            }
+        }
+    }
+}
+
+/** Hero 内三宫格 pills */
+@Composable
+fun HeroPills(items: List<Pair<String, String>>) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items.forEach { (k, v) ->
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(13.dp))
+                    .background(Color.White.copy(alpha = 0.20f))
+                    .padding(vertical = 10.dp, horizontal = 12.dp),
+            ) {
+                Text(k, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(v, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black, maxLines = 1)
+            }
+        }
     }
 }
 

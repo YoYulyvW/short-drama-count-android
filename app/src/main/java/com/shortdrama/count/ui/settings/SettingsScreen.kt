@@ -1,37 +1,366 @@
-ï»¿package com.shortdrama.count.ui.settings
+package com.shortdrama.count.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.shortdrama.count.model.RemoteDatabaseType
-import com.shortdrama.count.ui.components.CollapsibleCard
 import com.shortdrama.count.ui.theme.AppColorsHolder
 import com.shortdrama.count.ui.theme.Palette
 import com.shortdrama.count.ui.theme.parseHex
+import com.shortdrama.count.util.AppConstants
 import com.shortdrama.count.util.Haptics
 import com.shortdrama.count.viewmodel.AppViewModel
 
+private enum class SettingsPage { HOME, GENERAL, CONNECTION, DATA, UPDATE }
+
 @Composable
 fun SettingsScreen(vm: AppViewModel) {
+    var page by remember { mutableStateOf(SettingsPage.HOME) }
+    BackHandler(enabled = page != SettingsPage.HOME) { page = SettingsPage.HOME }
+
+    when (page) {
+        SettingsPage.HOME -> SettingsHomePage(vm) { page = it }
+        SettingsPage.GENERAL -> GeneralSettingsPage(vm) { page = SettingsPage.HOME }
+        SettingsPage.CONNECTION -> ConnectionSettingsPage(vm) { page = SettingsPage.HOME }
+        SettingsPage.DATA -> DataSettingsPage(vm) { page = SettingsPage.HOME }
+        SettingsPage.UPDATE -> UpdateSettingsPage(vm) { page = SettingsPage.HOME }
+    }
+}
+
+// ==================== Ö÷Ò³£º·ÖÀàÈë¿Ú ====================
+@Composable
+private fun SettingsHomePage(vm: AppViewModel, onOpen: (SettingsPage) -> Unit) {
     val settings by vm.settings.collectAsState()
-    val lastMessage by vm.lastMessage.collectAsState()
-    val syncStatus by vm.lastSyncStatus.collectAsState()
+    val days by vm.days.collectAsState()
+    val lanRunning by vm.lanRunning.collectAsState()
+    val relayState by vm.relayState.collectAsState()
+    val c = AppColorsHolder
+
+    val connBadge = when {
+        settings.relayEnabled -> when (relayState) {
+            com.shortdrama.count.service.RelayClient.State.CONNECTED -> "ÒÑÁ¬½Ó" to Palette.green
+            com.shortdrama.count.service.RelayClient.State.CONNECTING -> "Á¬½ÓÖÐ" to Palette.orange
+            com.shortdrama.count.service.RelayClient.State.ERROR -> "Òì³£" to Palette.red
+            else -> "Î´ÆôÓÃ" to c.textSub
+        }
+        settings.lanEnabled -> (if (lanRunning) "¾ÖÓòÍø" to Palette.green else "¾ÖÓòÍø" to Palette.orange)
+        else -> "Î´ÆôÓÃ" to c.textSub
+    }
+
+    LazyColumn(
+        Modifier.fillMaxSize().background(c.bg),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item { Text("ÉèÖÃ", color = c.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+
+        item {
+            SettingsGroupCard {
+                SettingsRow(
+                    iconRes = null, iconEmoji = "??", iconBg = "#8E8E93",
+                    title = "Í¨ÓÃ", subtitle = "ÏÔÊ¾ ¡¤ ·´À¡ ¡¤ Í³¼Æ",
+                    onClick = { onOpen(SettingsPage.GENERAL) },
+                )
+            }
+        }
+
+        item {
+            SettingsGroupCard {
+                SettingsRow(
+                    iconEmoji = "??", iconBg = "#34C759",
+                    title = "ÍÆËÍÓëÁ¬½Ó", subtitle = null,
+                    badge = connBadge.first, badgeColor = connBadge.second,
+                    onClick = { onOpen(SettingsPage.CONNECTION) },
+                )
+            }
+        }
+
+        item {
+            SettingsGroupCard {
+                SettingsRow(
+                    iconEmoji = "???", iconBg = "#5E5CE6",
+                    title = "Êý¾Ý",
+                    subtitle = days.size.toString() + " Ìì ¡¤ " + settings.platforms.size + " Æ½Ì¨",
+                    onClick = { onOpen(SettingsPage.DATA) },
+                )
+            }
+        }
+
+        item {
+            SettingsGroupCard {
+                SettingsRow(
+                    iconEmoji = "??", iconBg = "#007AFF",
+                    title = "Èí¼þ¸üÐÂ",
+                    subtitle = "v" + com.shortdrama.count.model.AppVersion.name,
+                    onClick = { onOpen(SettingsPage.UPDATE) },
+                )
+            }
+        }
+
+        item { Spacer(Modifier.height(70.dp)) }
+    }
+}
+
+@Composable
+private fun SettingsGroupCard(content: @Composable () -> Unit) {
+    val c = AppColorsHolder
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card)
+    ) { content() }
+}
+
+@Composable
+private fun SettingsRow(
+    iconRes: Any?, iconEmoji: String, iconBg: String,
+    title: String, subtitle: String?,
+    badge: String? = null, badgeColor: Color = Palette.textSub,
+    onClick: (() -> Unit)? = null,
+) {
+    val c = AppColorsHolder
+    Row(
+        Modifier.fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable {
+                onClick(); Haptics.tap()
+            } else Modifier)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier.size(30.dp).clip(RoundedCornerShape(7.dp)).background(parseHex(iconBg)),
+            contentAlignment = Alignment.Center,
+        ) { Text(iconEmoji, fontSize = 15.sp) }
+        Text(title, color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        if (badge != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(badgeColor))
+                Text(badge, color = badgeColor, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else if (subtitle != null) {
+            Text(subtitle, color = c.textSub, fontSize = 14.sp)
+        }
+        if (onClick != null) {
+            Icon(Icons.Filled.ChevronRight, null, tint = c.textSub.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+// ==================== Í¨ÓÃ ====================
+@Composable
+private fun GeneralSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
+    val settings by vm.settings.collectAsState()
+    val c = AppColorsHolder
+
+    SubPageScaffold(title = "Í¨ÓÃ", onBack = onBack) {
+        item {
+            GroupTitle("ÏÔÊ¾Æ«ºÃ")
+            SettingsGroupCard {
+                Column {
+                    SwitchRow("Ê×Ò³ÏÔÊ¾¹¤¾ßÐÐ", settings.showQuickTools) {
+                        vm.updateSettings(settings.copy(showQuickTools = it)); vm.saveSettings()
+                    }
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Row {
+                            Text("¹¤¾ß°´Å¥´óÐ¡", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text(settings.toolButtonSize.toString(), color = c.textSub, fontSize = 14.sp)
+                        }
+                        Slider(
+                            value = settings.toolButtonSize.toFloat(),
+                            onValueChange = { vm.updateSettings(settings.copy(toolButtonSize = it.toInt())) },
+                            onValueChangeFinished = { vm.saveSettings() },
+                            valueRange = 40f..80f,
+                        )
+                    }
+                    SwitchRow("×Ô¶¯ÕÛµþ¾ç¼¯", settings.autoCollapse) {
+                        vm.updateSettings(settings.copy(autoCollapse = it)); vm.saveSettings()
+                    }
+                    SwitchRow("Ê±¼äÓëÆ½Ì¨ÃûÍ¬ÐÐ", settings.timeInline) {
+                        vm.updateSettings(settings.copy(timeInline = it)); vm.saveSettings()
+                    }
+                }
+            }
+        }
+        item {
+            GroupTitle("½»»¥·´À¡")
+            SettingsGroupCard {
+                Column {
+                    SwitchRow("Õð¶¯·´À¡", settings.hapticFeedback) {
+                        vm.updateSettings(settings.copy(hapticFeedback = it)); vm.saveSettings()
+                    }
+                    SwitchRow("°´Å¥ÒôÐ§", settings.soundFeedback) {
+                        vm.updateSettings(settings.copy(soundFeedback = it)); vm.saveSettings()
+                    }
+                }
+            }
+        }
+        item {
+            GroupTitle("Í³¼ÆÆ«ºÃ")
+            SettingsGroupCard {
+                Column {
+                    SwitchRow("°´¹ã¸æÊýÅÅÐò", settings.sortByAds) {
+                        vm.updateSettings(settings.copy(sortByAds = it)); vm.saveSettings()
+                    }
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Row {
+                            Text("Ã¿ÈÕ´æµµÉÏÏÞ", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Text(settings.maxUndoPerDay.toString(), color = c.textSub, fontSize = 14.sp)
+                        }
+                        Slider(
+                            value = settings.maxUndoPerDay.toFloat(),
+                            onValueChange = { vm.updateSettings(settings.copy(maxUndoPerDay = it.toInt())) },
+                            onValueChangeFinished = { vm.saveSettings() },
+                            valueRange = 3f..30f,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================== ÍÆËÍÓëÁ¬½Ó ====================
+@Composable
+private fun ConnectionSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
+    val settings by vm.settings.collectAsState()
     val lanRunning by vm.lanRunning.collectAsState()
     val lanPort by vm.lanPort.collectAsState()
     val lanIp by vm.lanIp.collectAsState()
-    val clipboard = LocalClipboardManager.current
+    val relayState by vm.relayState.collectAsState()
+    val relayErr by vm.relayLastError.collectAsState()
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val c = AppColorsHolder
+
+    SubPageScaffold(title = "ÍÆËÍÓëÁ¬½Ó", onBack = onBack) {
+        item {
+            GroupTitle("¾ÖÓòÍø·þÎñ")
+            SettingsGroupCard {
+                Column {
+                    SwitchRow("ÆôÓÃ¾ÖÓòÍøÊäÈë", settings.lanEnabled) {
+                        vm.updateSettings(settings.copy(lanEnabled = it)); vm.saveSettings(); vm.refreshLanIp()
+                    }
+                    if (settings.lanEnabled) {
+                        val ip = lanIp
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("·þÎñ×´Ì¬", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(if (lanRunning) Palette.green else Palette.orange))
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (lanRunning) "ÔËÐÐÖÐ" else "Î´ÔËÐÐ",
+                                color = if (lanRunning) Palette.green else Palette.orange,
+                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (ip != null && lanRunning) {
+                            val url = "http://" + ip + ":" + lanPort
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("·ÃÎÊµØÖ·", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text(url, color = Palette.blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                                TextButton(onClick = {
+                                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(url))
+                                    vm.showToast("ÒÑ¸´ÖÆµØÖ·", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                                }) { Text("¸´ÖÆµØÖ·") }
+                                Spacer(Modifier.weight(1f))
+                                TextButton(onClick = { vm.refreshLanIp() }) { Text("Ë¢ÐÂ") }
+                            }
+                        }
+                        SwitchRow("ÏÔÊ¾ÎÕÊÖÌáÊ¾", settings.showHandshakeToast) {
+                            vm.updateSettings(settings.copy(showHandshakeToast = it)); vm.saveSettings()
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            GroupTitle("ÖÐ¼Ì·þÎñÆ÷")
+            SettingsGroupCard {
+                Column {
+                    SwitchRow("ÆôÓÃÖÐ¼Ì·þÎñÆ÷", settings.relayEnabled) {
+                        vm.updateSettings(settings.copy(relayEnabled = it)); vm.saveSettings()
+                    }
+                    if (settings.relayEnabled) {
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            OutlinedTextField(
+                                value = settings.relayUrl,
+                                onValueChange = { vm.updateSettings(settings.copy(relayUrl = it)) },
+                                label = { Text("·þÎñÆ÷µØÖ·£¨https://...£©") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        val relayStatusText = when (relayState) {
+                            com.shortdrama.count.service.RelayClient.State.CONNECTED -> "ÒÑÁ¬½Ó"
+                            com.shortdrama.count.service.RelayClient.State.CONNECTING -> "Á¬½ÓÖÐ¡­"
+                            com.shortdrama.count.service.RelayClient.State.ERROR -> "Òì³£"
+                            else -> "Î´ÆôÓÃ"
+                        }
+                        val relayStatusColor = when (relayState) {
+                            com.shortdrama.count.service.RelayClient.State.CONNECTED -> Palette.green
+                            com.shortdrama.count.service.RelayClient.State.CONNECTING -> Palette.orange
+                            com.shortdrama.count.service.RelayClient.State.ERROR -> Palette.red
+                            else -> c.textSub
+                        }
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Á¬½Ó×´Ì¬", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(relayStatusColor))
+                            Spacer(Modifier.width(8.dp))
+                            Text(relayStatusText, color = relayStatusColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (relayErr != null && relayState == com.shortdrama.count.service.RelayClient.State.ERROR) {
+                            Text(relayErr ?: "", color = Palette.red, fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                        }
+                        TextButton(
+                            onClick = { vm.saveSettings(); Haptics.tap() },
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                        ) { Text("Á¢¼´ÖØÁ¬") }
+                    }
+                }
+            }
+        }
+
+        item {
+            GroupTitle("Í¨Öª")
+            SettingsGroupCard {
+                Column {
+                    SwitchRow("ÊÕµ½ÍÆËÍÊ±µ¯Í¨Öª", settings.notifyOnPush) {
+                        vm.updateSettings(settings.copy(notifyOnPush = it)); vm.saveSettings()
+                    }
+                    SwitchRow("µã»÷ºóÏÈÑ¯ÎÊÔÙ´ò¿ª", settings.askBeforeOpenPush) {
+                        vm.updateSettings(settings.copy(askBeforeOpenPush = it)); vm.saveSettings()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================== Êý¾Ý ====================
+@Composable
+private fun DataSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
+    val settings by vm.settings.collectAsState()
+    val days by vm.days.collectAsState()
+    val c = AppColorsHolder
     val context = androidx.compose.ui.platform.LocalContext.current
+    var showDeleteDay by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
+    var showClearFinal by remember { mutableStateOf(false) }
+
     val backupImportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -39,323 +368,217 @@ fun SettingsScreen(vm: AppViewModel) {
             try {
                 val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                 if (text != null && vm.importBackup(text)) {
-                    vm.showToast("å¤‡ä»½å¯¼å…¥æˆåŠŸ", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                    vm.showToast("±¸·Ýµ¼Èë³É¹¦", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
                 } else {
-                    vm.showToast("å¤‡ä»½æ ¼å¼é”™è¯¯", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                    vm.showToast("±¸·Ý¸ñÊ½´íÎó", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
                 }
             } catch (e: Exception) {
-                vm.showToast("å¯¼å…¥å¤±è´¥ï¼š" + e.message, com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                vm.showToast("µ¼ÈëÊ§°Ü£º" + e.message, com.shortdrama.count.viewmodel.ToastStyle.ERROR)
             }
         }
     }
-    val c = AppColorsHolder
-    var showDeleteDay by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        Modifier.fillMaxSize().background(c.bg),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item { Text("è®¾ç½®", color = c.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
-
+    SubPageScaffold(title = "Êý¾Ý", onBack = onBack) {
         item {
-            CollapsibleCard(title = "åé¦ˆ", subtitle = "éœ‡åŠ¨ / éŸ³æ•ˆ") {
+            GroupTitle("×ÖµäÓëÊý¾Ý¿â")
+            SettingsGroupCard {
                 Column {
-                    SwitchRow("éœ‡åŠ¨åé¦ˆ", settings.hapticFeedback) {
-                        vm.updateSettings(settings.copy(hapticFeedback = it)); vm.saveSettings()
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Æ½Ì¨×Öµä", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text(settings.platforms.size.toString() + " ¸ö", color = c.textSub, fontSize = 14.sp)
                     }
-                    SwitchRow("éŸ³æ•ˆåé¦ˆ", settings.soundFeedback) {
-                        vm.updateSettings(settings.copy(soundFeedback = it)); vm.saveSettings()
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(dividerColor(c.isDark)))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("¼ÇÂ¼ÌìÊý", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text(days.size.toString(), color = c.textSub, fontSize = 14.sp)
                     }
                 }
             }
         }
 
         item {
-            CollapsibleCard(title = "æ˜¾ç¤º", subtitle = "æŠ˜å  / å·¥å…· / æŽ’åº") {
+            GroupTitle("Êý¾Ý¹ÜÀí")
+            SettingsGroupCard {
                 Column {
-                    SwitchRow("è‡ªåŠ¨æŠ˜å ", settings.autoCollapse) {
-                        vm.updateSettings(settings.copy(autoCollapse = it)); vm.saveSettings()
+                    Row(
+                        Modifier.fillMaxWidth().clickable { showDeleteDay = true; Haptics.tap() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("É¾³ýÖ¸¶¨ÈÕÆÚÊý¾Ý", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Icon(Icons.Filled.ChevronRight, null, tint = c.textSub.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                     }
-                    SwitchRow("æ˜¾ç¤ºå¿«æ·å·¥å…·", settings.showQuickTools) {
-                        vm.updateSettings(settings.copy(showQuickTools = it)); vm.saveSettings()
-                    }
-                    SwitchRow("æŒ‰å¹¿å‘Šæ•°æŽ’åº", settings.sortByAds) {
-                        vm.updateSettings(settings.copy(sortByAds = it)); vm.saveSettings()
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("å·¥å…·æŒ‰é’®å¤§å°ï¼š" + settings.toolButtonSize, color = c.textSub, fontSize = 13.sp)
-                    Slider(
-                        value = settings.toolButtonSize.toFloat(),
-                        onValueChange = { vm.updateSettings(settings.copy(toolButtonSize = it.toInt())) },
-                        onValueChangeFinished = { vm.saveSettings() },
-                        valueRange = 40f..80f,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text("æ¯æ—¥æ’¤é”€ä¸Šé™ï¼š" + settings.maxUndoPerDay, color = c.textSub, fontSize = 13.sp)
-                    Slider(
-                        value = settings.maxUndoPerDay.toFloat(),
-                        onValueChange = { vm.updateSettings(settings.copy(maxUndoPerDay = it.toInt())) },
-                        onValueChangeFinished = { vm.saveSettings() },
-                        valueRange = 1f..30f,
-                    )
-                }
-            }
-        }
-
-        item {
-            CollapsibleCard(title = "å¹³å°", subtitle = settings.platforms.size.toString() + " ä¸ª") {
-                Column {
-                    settings.platforms.forEach { cfg ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                            Box(Modifier.size(14.dp).clip(RoundedCornerShape(4.dp)).background(parseHex(cfg.colorHex)))
-                            Spacer(Modifier.width(10.dp))
-                            Text(cfg.name, color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                            Text(cfg.short, color = c.textSub, fontSize = 12.sp)
-                        }
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(dividerColor(c.isDark)))
+                    Row(
+                        Modifier.fillMaxWidth().clickable { showClearConfirm = true; Haptics.tap() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Çå¿ÕËùÓÐÊý¾Ý", color = Palette.red, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
 
         item {
-            CollapsibleCard(title = "å±€åŸŸç½‘æœåŠ¡", subtitle = if (lanRunning) "è¿è¡Œä¸­" else "å·²å…³é—­") {
+            GroupTitle("Êý¾Ý±¸·Ý")
+            SettingsGroupCard {
                 Column {
-                    SwitchRow("å¯ç”¨å±€åŸŸç½‘è¾“å…¥", settings.lanEnabled) {
-                        vm.updateSettings(settings.copy(lanEnabled = it)); vm.saveSettings()
-                        vm.refreshLanIp()
-                    }
-                    if (settings.lanEnabled) {
-                        Spacer(Modifier.height(10.dp))
-                        // æœåŠ¡çŠ¶æ€
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp))
-                                .background(if (lanRunning) Palette.green else Palette.orange))
-                            Spacer(Modifier.width(8.dp))
-                            Text("æœåŠ¡çŠ¶æ€", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                            Text(if (lanRunning) "è¿è¡Œä¸­" else "æœªè¿è¡Œ",
-                                color = if (lanRunning) Palette.green else Palette.orange,
-                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        val ip = lanIp
-                        if (ip != null && lanRunning) {
-                            val url = "http://" + ip + ":" + lanPort
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("è®¿é—®åœ°å€", color = c.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                                Text(url, color = Palette.blue, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            Row {
-                                TextButton(onClick = {
-                                    clipboard.setText(AnnotatedString(url))
-                                    vm.showToast("å·²å¤åˆ¶åœ°å€", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
-                                }) { Text("å¤åˆ¶åœ°å€") }
-                                Spacer(Modifier.weight(1f))
-                                TextButton(onClick = { vm.refreshLanIp() }) { Text("åˆ·æ–°") }
-                            }
-                        } else if (!lanRunning) {
-                            Text("æœåŠ¡æœªè¿è¡Œï¼Œè¯·æ£€æŸ¥ç«¯å£å ç”¨", color = Palette.orange, fontSize = 12.sp)
-                        } else {
-                            Text("æœªè¿žæŽ¥ WiFiï¼Œæ— æ³•èŽ·å–å±€åŸŸç½‘ IP", color = Palette.orange, fontSize = 12.sp)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = { vm.scanDevicesForPush() }, modifier = Modifier.fillMaxWidth()) {
-                            Text("æ‰«æè®¾å¤‡å¹¶æŽ¨é€")
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text("åœ¨åŒä¸€ WiFi ä¸‹ç”¨æµè§ˆå™¨æ‰“å¼€ä¸Šæ–¹åœ°å€å³å¯è¾“å…¥ï¼›App éœ€ä¿æŒå‰å°ã€‚",
-                            color = c.textSub, fontSize = 11.sp)
-                    }
-                }
-            }
-        }
-
-        item {
-            val relayState by vm.relayState.collectAsState()
-            val relayErr by vm.relayLastError.collectAsState()
-            val relayStatusText = when (relayState) {
-                com.shortdrama.count.service.RelayClient.State.CONNECTED -> "å·²è¿žæŽ¥"
-                com.shortdrama.count.service.RelayClient.State.CONNECTING -> "è¿žæŽ¥ä¸­â€¦"
-                com.shortdrama.count.service.RelayClient.State.ERROR -> "å¼‚å¸¸"
-                else -> "æœªå¯ç”¨"
-            }
-            val relayStatusColor = when (relayState) {
-                com.shortdrama.count.service.RelayClient.State.CONNECTED -> Palette.green
-                com.shortdrama.count.service.RelayClient.State.CONNECTING -> Palette.orange
-                com.shortdrama.count.service.RelayClient.State.ERROR -> Palette.red
-                else -> c.textSub
-            }
-            CollapsibleCard(title = "ä¸­ç»§æœåŠ¡å™¨", subtitle = relayStatusText) {
-                Column {
-                    SwitchRow("å¯ç”¨ä¸­ç»§æœåŠ¡å™¨", settings.relayEnabled) {
-                        vm.updateSettings(settings.copy(relayEnabled = it)); vm.saveSettings()
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = settings.relayUrl,
-                        onValueChange = { vm.updateSettings(settings.copy(relayUrl = it)) },
-                        label = { Text("æœåŠ¡å™¨åœ°å€ï¼ˆhttps://...ï¼‰") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(relayStatusColor))
-                        Spacer(Modifier.width(8.dp))
-                        Text("çŠ¶æ€", color = c.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        Text(relayStatusText, color = relayStatusColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    if (relayErr != null && relayState == com.shortdrama.count.service.RelayClient.State.ERROR) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(relayErr ?: "", color = Palette.red, fontSize = 11.sp)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text("å¯ç”¨åŽå¯é€šè¿‡å…¬ç½‘ä¸­ç»§æŽ¥æ”¶å…¶ä»–è®¾å¤‡çš„æŽ¨é€ï¼Œæ‘†è„±å±€åŸŸç½‘é™åˆ¶ã€‚",
-                        color = c.textSub, fontSize = 11.sp)
-                }
-            }
-        }
-
-        item {
-            CollapsibleCard(title = "é€šçŸ¥", subtitle = "æ”¶åˆ°æŽ¨é€æ—¶æé†’") {
-                Column {
-                    SwitchRow("æ”¶åˆ°æŽ¨é€æ—¶å¼¹é€šçŸ¥", settings.notifyOnPush) {
-                        vm.updateSettings(settings.copy(notifyOnPush = it)); vm.saveSettings()
-                    }
-                    SwitchRow("ç‚¹å‡»åŽå…ˆè¯¢é—®å†æ‰“å¼€", settings.askBeforeOpenPush) {
-                        vm.updateSettings(settings.copy(askBeforeOpenPush = it)); vm.saveSettings()
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text("å…³é—­ã€Œç‚¹å‡»åŽè¯¢é—®ã€æ—¶ï¼Œæ”¶åˆ°æŽ¨é€ä¼šç›´æŽ¥æ‰“å¼€å¯¼å…¥é¢æ¿ã€‚",
-                        color = c.textSub, fontSize = 11.sp)
-                }
-            }
-        }
-
-        item {
-            CollapsibleCard(title = "è¿œç¨‹åŒæ­¥", subtitle = if (settings.remoteEnabled) "å·²å¯ç”¨" else "æœªå¯ç”¨") {
-                Column {
-                    SwitchRow("å¯ç”¨è¿œç¨‹åŒæ­¥", settings.remoteEnabled) {
-                        vm.updateSettings(settings.copy(remoteEnabled = it)); vm.saveSettings()
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = settings.remoteHost, onValueChange = { vm.updateSettings(settings.copy(remoteHost = it)) },
-                        label = { Text("æœåŠ¡å™¨åœ°å€") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = settings.remoteToken, onValueChange = { vm.updateSettings(settings.copy(remoteToken = it)) },
-                        label = { Text("Token") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(6.dp))
-                    Row {
-                        RemoteDatabaseType.entries.forEach { t ->
-                            FilterChip(
-                                selected = settings.remoteDBType == t,
-                                onClick = { vm.updateSettings(settings.copy(remoteDBType = t)) },
-                                label = { Text(t.display) },
-                                modifier = Modifier.padding(end = 6.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = { vm.syncToRemote() }, modifier = Modifier.fillMaxWidth()) { Text("ç«‹å³åŒæ­¥") }
-                    if (syncStatus.isNotEmpty()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(syncStatus, color = c.textSub, fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        item {
-            CollapsibleCard(title = "æ›´æ–°", subtitle = "v" + com.shortdrama.count.model.AppVersion.name) {
-                Column {
-                    SwitchRow("è‡ªåŠ¨æ£€æŸ¥æ›´æ–°", settings.autoUpdateCheck) {
-                        vm.updateSettings(settings.copy(autoUpdateCheck = it)); vm.saveSettings()
-                    }
-                    SwitchRow("é™é»˜ä¸‹è½½", settings.silentDownload) {
-                        vm.updateSettings(settings.copy(silentDownload = it)); vm.saveSettings()
-                    }
-                    SwitchRow("è‡ªåŠ¨æç¤ºå®‰è£…", settings.autoPromptInstall) {
-                        vm.updateSettings(settings.copy(autoPromptInstall = it)); vm.saveSettings()
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    OutlinedTextField(
-                        value = settings.customUpdateProxy, onValueChange = { vm.updateSettings(settings.copy(customUpdateProxy = it)) },
-                        label = { Text("è‡ªå®šä¹‰ä»£ç†ï¼ˆå¯é€‰ï¼‰") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { vm.checkForUpdate(silent = false, force = true) }, modifier = Modifier.weight(1f)) {
-                            Text("æ£€æŸ¥æ›´æ–°")
-                        }
-                        OutlinedButton(onClick = { vm.testCustomProxy(settings.customUpdateProxy) }, modifier = Modifier.weight(1f)) {
-                            Text("æµ‹è¯•ä»£ç†")
-                        }
-                    }
-                    lastMessage?.let {
-                        Spacer(Modifier.height(6.dp))
-                        Text(it, color = c.textSub, fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        item {
-            CollapsibleCard(title = "æ•°æ®ç®¡ç†", subtitle = "åˆ é™¤æ•°æ®") {
-                Column {
-                    Text("ä»…åˆ é™¤æŸä¸ªæ—¥æœŸçš„è®°å½•ï¼Œå…¶ä»–æ—¥æœŸä¸å—å½±å“ã€‚",
-                        color = c.textSub, fontSize = 11.sp)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { showDeleteDay = true },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("åˆ é™¤æŒ‡å®šæ—¥æœŸæ•°æ®") }
-                }
-            }
-        }
-
-        item {
-            CollapsibleCard(title = "æ•°æ®å¤‡ä»½", subtitle = "å¯¼å‡º / å¯¼å…¥") {
-                Column {
-                    Text("å¸è½½é‡è£…åŽæ•°æ®ä»åœ¨ï¼šç³»ç»Ÿä¼šè¯¢é—®æ˜¯å¦ä¿ç•™åº”ç”¨æ•°æ®ï¼ˆAndroid 10+ï¼‰ã€‚",
-                        color = c.textSub, fontSize = 11.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             val json = vm.exportBackup()
                             val file = java.io.File(context.cacheDir, "shortdrama_backup.json")
                             file.writeText(json)
-                            com.shortdrama.count.util.BackupShare.shareFile(context, file, "application/json", "å¯¼å‡ºå¤‡ä»½")
-                        }, modifier = Modifier.weight(1f)) { Text("å¯¼å‡ºå¤‡ä»½") }
+                            com.shortdrama.count.util.BackupShare.shareFile(context, file, "application/json", "µ¼³ö±¸·Ý")
+                        }, modifier = Modifier.weight(1f)) { Text("µ¼³ö±¸·Ý") }
                         OutlinedButton(onClick = {
                             backupImportLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
-                        }, modifier = Modifier.weight(1f)) { Text("å¯¼å…¥å¤‡ä»½") }
+                        }, modifier = Modifier.weight(1f)) { Text("µ¼Èë±¸·Ý") }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text("å¯¼å‡ºä¸º JSON æ–‡ä»¶ï¼Œä¿å­˜åˆ°ä»»æ„ä½ç½®ï¼›å¯¼å…¥åŽè¦†ç›–å½“å‰æ•°æ®ã€‚",
-                        color = c.textSub, fontSize = 11.sp)
                 }
             }
         }
-
-        item {
-            CollapsibleCard(title = "å…³äºŽ") {
-                Column {
-                    Text("å¼€é¥­äº† Â· çŸ­å‰§è®¡æ•°ï¼ˆAndroidï¼‰", color = c.text, fontSize = 14.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Text("ç‰ˆæœ¬ " + com.shortdrama.count.model.AppVersion.full, color = c.textSub, fontSize = 12.sp)
-                }
-            }
-        }
-        item { Spacer(Modifier.height(80.dp)) }
     }
 
     if (showDeleteDay) {
         DeleteDayDialog(vm) { showDeleteDay = false }
     }
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            confirmButton = { TextButton(onClick = { showClearConfirm = false; showClearFinal = true }) { Text("¼ÌÐø", color = Palette.red) } },
+            dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("È¡Ïû") } },
+            title = { Text("È·ÈÏÇå¿Õ£¿") },
+            text = { Text("½«É¾³ýÈ«²¿¶Ì¾ç¼ÇÂ¼¡¢Æ½Ì¨¼ÇÂ¼¡¢ÀúÊ·´æµµ¡£´Ë²Ù×÷ÎÞ·¨»Ö¸´¡£") },
+        )
+    }
+    if (showClearFinal) {
+        AlertDialog(
+            onDismissRequest = { showClearFinal = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.clearAllData()
+                    vm.showToast("ÒÑÇå¿ÕËùÓÐÊý¾Ý", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                    showClearFinal = false
+                }) { Text("³¹µ×Çå¿Õ", color = Palette.red) }
+            },
+            dismissButton = { TextButton(onClick = { showClearFinal = false }) { Text("È¡Ïû") } },
+            title = { Text("×îºóÈ·ÈÏ") },
+            text = { Text("ÕæµÄÒªÇå¿ÕËùÓÐÊý¾ÝÂð£¿É¾³ýºóÎÞ·¨³·Ïú¡£") },
+        )
+    }
 }
 
+// ==================== Èí¼þ¸üÐÂ ====================
+@Composable
+private fun UpdateSettingsPage(vm: AppViewModel, onBack: () -> Unit) {
+    val settings by vm.settings.collectAsState()
+    val lastMessage by vm.lastMessage.collectAsState()
+    val c = AppColorsHolder
+
+    SubPageScaffold(title = "Èí¼þ¸üÐÂ", onBack = onBack) {
+        item {
+            GroupTitle("Èí¼þ¸üÐÂ")
+            SettingsGroupCard {
+                Column {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("µ±Ç°°æ±¾", color = c.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text("v" + com.shortdrama.count.model.AppVersion.full, color = c.textSub, fontSize = 13.sp)
+                    }
+                    SwitchRow("×Ô¶¯¼ì²é¸üÐÂ", settings.autoUpdateCheck) {
+                        vm.updateSettings(settings.copy(autoUpdateCheck = it)); vm.saveSettings()
+                    }
+                    SwitchRow("¾²Ä¬ÏÂÔØ", settings.silentDownload) {
+                        vm.updateSettings(settings.copy(silentDownload = it)); vm.saveSettings()
+                    }
+                    SwitchRow("×Ô¶¯ÌáÊ¾°²×°", settings.autoPromptInstall) {
+                        vm.updateSettings(settings.copy(autoPromptInstall = it)); vm.saveSettings()
+                    }
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { vm.checkForUpdate(silent = false, force = true) }, modifier = Modifier.weight(1f)) {
+                            Text("¼ì²é¸üÐÂ")
+                        }
+                        OutlinedButton(onClick = { vm.testCustomProxy(settings.customUpdateProxy) }, modifier = Modifier.weight(1f)) {
+                            Text("²âÊÔ´úÀí")
+                        }
+                    }
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        OutlinedTextField(
+                            value = settings.customUpdateProxy,
+                            onValueChange = { vm.updateSettings(settings.copy(customUpdateProxy = it)) },
+                            label = { Text("×Ô¶¨Òå´úÀí£¨¿ÉÑ¡£©") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    lastMessage?.let {
+                        Text(it, color = c.textSub, fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    }
+                }
+            }
+        }
+        item {
+            GroupTitle("¹ØÓÚ")
+            SettingsGroupCard {
+                Column(Modifier.padding(16.dp)) {
+                    Text("¿ª·¹ÁË ¡¤ ¶Ì¾ç¼ÆÊý£¨Android£©", color = c.text, fontSize = 14.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("°æ±¾ " + com.shortdrama.count.model.AppVersion.full, color = c.textSub, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+// ==================== Í¨ÓÃ½ÅÊÖ¼Ü ====================
+@Composable
+private fun SubPageScaffold(
+    title: String,
+    onBack: () -> Unit,
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
+) {
+    val c = AppColorsHolder
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { onBack(); Haptics.tap() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Palette.blue)
+            }
+            Text(title, color = c.text, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f))
+        }
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            content()
+            item { Spacer(Modifier.height(40.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun GroupTitle(text: String) {
+    Text(text, color = AppColorsHolder.textSub, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+}
+
+@Composable
+private fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, color = AppColorsHolder.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = { onCheckedChange(it); Haptics.tap() })
+    }
+}
+
+// ==================== É¾³ýÖ¸¶¨ÈÕÆÚ¶Ô»°¿ò ====================
 @Composable
 private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val c = AppColorsHolder
@@ -376,14 +599,14 @@ private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 if (!hasData) {
-                    vm.showToast("è¯¥æ—¥æœŸæ²¡æœ‰æ•°æ®", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
+                    vm.showToast("¸ÃÈÕÆÚÃ»ÓÐÊý¾Ý", com.shortdrama.count.viewmodel.ToastStyle.ERROR)
                     return@TextButton
                 }
                 showFirst = true
-            }) { Text("åˆ é™¤", color = Palette.red) }
+            }) { Text("É¾³ý", color = Palette.red) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("å–æ¶ˆ") } },
-        title = { Text("åˆ é™¤æŒ‡å®šæ—¥æœŸæ•°æ®") },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("È¡Ïû") } },
+        title = { Text("É¾³ýÖ¸¶¨ÈÕÆÚÊý¾Ý") },
         text = {
             Column {
                 OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
@@ -391,44 +614,39 @@ private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(10.dp))
                 Row {
-                    Text("è¯¥æ—¥çŸ­å‰§", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Text(dramaCount.toString() + " éƒ¨", color = c.text, fontSize = 13.sp)
+                    Text("¸ÃÈÕ¶Ì¾ç", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(dramaCount.toString() + " ²¿", color = c.text, fontSize = 13.sp)
                 }
                 Spacer(Modifier.height(4.dp))
                 Row {
-                    Text("è¯¥æ—¥è®°å½•", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Text(recordCount.toString() + " æ¡", color = c.text, fontSize = 13.sp)
+                    Text("¸ÃÈÕ¼ÇÂ¼", color = c.textSub, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(recordCount.toString() + " Ìõ", color = c.text, fontSize = 13.sp)
                 }
-                Spacer(Modifier.height(8.dp))
-                Text("ä»…åˆ é™¤æ‰€é€‰æ—¥æœŸçš„æ•°æ®ï¼Œå…¶ä»–æ—¥æœŸä¸å—å½±å“ã€‚åˆ é™¤åŽæ— æ³•æ’¤é”€ã€‚",
-                    color = c.textSub, fontSize = 11.sp)
             }
         },
     )
 
     if (showPicker) {
-        val state = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = pickedDate.time
-        )
-        androidx.compose.material3.DatePickerDialog(
+        val state = rememberDatePickerState(initialSelectedDateMillis = pickedDate.time)
+        DatePickerDialog(
             onDismissRequest = { showPicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     state.selectedDateMillis?.let { pickedDate = java.util.Date(it) }
                     showPicker = false
-                }) { Text("ç¡®å®š") }
+                }) { Text("È·¶¨") }
             },
-            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("å–æ¶ˆ") } },
-        ) { androidx.compose.material3.DatePicker(state = state) }
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("È¡Ïû") } },
+        ) { DatePicker(state = state) }
     }
 
     if (showFirst) {
         AlertDialog(
             onDismissRequest = { showFirst = false },
-            confirmButton = { TextButton(onClick = { showFirst = false; showFinal = true }) { Text("ç»§ç»­", color = Palette.red) } },
-            dismissButton = { TextButton(onClick = { showFirst = false }) { Text("å–æ¶ˆ") } },
-            title = { Text("ç¡®è®¤åˆ é™¤ï¼Ÿ") },
-            text = { Text("å°†åˆ é™¤ " + pickedStr + " çš„å…¨éƒ¨çŸ­å‰§ä¸Žå¹³å°è®°å½•ã€‚æ­¤æ“ä½œæ— æ³•æ¢å¤ã€‚") },
+            confirmButton = { TextButton(onClick = { showFirst = false; showFinal = true }) { Text("¼ÌÐø", color = Palette.red) } },
+            dismissButton = { TextButton(onClick = { showFirst = false }) { Text("È¡Ïû") } },
+            title = { Text("È·ÈÏÉ¾³ý£¿") },
+            text = { Text("½«É¾³ý " + pickedStr + " µÄÈ«²¿¶Ì¾çÓëÆ½Ì¨¼ÇÂ¼¡£´Ë²Ù×÷ÎÞ·¨»Ö¸´¡£") },
         )
     }
 
@@ -438,22 +656,17 @@ private fun DeleteDayDialog(vm: AppViewModel, onDismiss: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     vm.deleteDay(pickedStr)
-                    vm.showToast("å·²åˆ é™¤ " + pickedStr + " çš„æ•°æ®", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
+                    vm.showToast("ÒÑÉ¾³ý " + pickedStr + " µÄÊý¾Ý", com.shortdrama.count.viewmodel.ToastStyle.SUCCESS)
                     showFinal = false
                     onDismiss()
-                }) { Text("å½»åº•åˆ é™¤", color = Palette.red) }
+                }) { Text("³¹µ×É¾³ý", color = Palette.red) }
             },
-            dismissButton = { TextButton(onClick = { showFinal = false }) { Text("å–æ¶ˆ") } },
-            title = { Text("æœ€åŽç¡®è®¤") },
-            text = { Text("çœŸçš„è¦åˆ é™¤ " + pickedStr + " çš„æ•°æ®å—ï¼Ÿåˆ é™¤åŽæ— æ³•æ’¤é”€ã€‚") },
+            dismissButton = { TextButton(onClick = { showFinal = false }) { Text("È¡Ïû") } },
+            title = { Text("×îºóÈ·ÈÏ") },
+            text = { Text("ÕæµÄÒªÉ¾³ý " + pickedStr + " µÄÊý¾ÝÂð£¿É¾³ýºóÎÞ·¨³·Ïú¡£") },
         )
     }
 }
 
-@Composable
-private fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(title, color = AppColorsHolder.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = { onCheckedChange(it); Haptics.tap() })
-    }
-}
+private fun dividerColor(isDark: Boolean): Color =
+    if (isDark) Color(0x33FFFFFF) else Color(0x22000000)

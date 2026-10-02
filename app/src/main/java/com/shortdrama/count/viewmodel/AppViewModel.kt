@@ -789,6 +789,19 @@ class AppViewModel : ViewModel() {
     }
     fun clearToast() { _toast.value = null }
 
+    /** 清空所有数据（剧集 + 撤销） */
+    fun clearAllData() {
+        _days.value = emptyMap()
+        _undos.value = emptyList()
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                source.saveDays(emptyMap())
+                source.saveUndos(emptyList())
+            }
+        }
+        Haptics.warning()
+    }
+
     /** 导出全部数据为 JSON 字符串（备份用） */
     fun exportBackup(): String {
         val daysJson = kotlinx.serialization.json.Json { encodeDefaults = true }

@@ -18,6 +18,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -273,6 +274,9 @@ object RelayClient {
                     val o = el.jsonObject
                     val id = o["deviceId"]?.jsonPrimitive?.content ?: continue
                     if (id == selfId) continue
+                    // 只保留在线设备（服务端标记 online=false 时跳过）
+                    val online = o["online"]?.jsonPrimitive?.booleanOrNull
+                    if (online == false) continue
                     val name = o["deviceName"]?.jsonPrimitive?.content ?: "中继设备"
                     val platform = o["platform"]?.jsonPrimitive?.content ?: ""
                     list.add(
